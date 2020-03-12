@@ -166,10 +166,6 @@ public class HomeViewModel extends BaseViewModel {
         LocaleUtils.setLocale(activity, currentLocale);
     }
 
-    public void loadExternalXMLContracts() {
-        assetDefinitionService.checkExternalDirectoryAndLoad();
-    }
-
     public void downloadAndInstall(String build, Context ctx) {
         createDirectory();
         downloadAPK(build, ctx);
