@@ -86,14 +86,23 @@ public class ScriptTool implements AttributeInterface
                 case TS_FILE:
                     try
                     {
-                        File thisDirectory = new File(".");
-                        File[] files = thisDirectory.listFiles();
-                        for (File file : files)
+                        //first try abs path
+                        File thisFile = new File(arg);
+                        if (thisFile.exists() && thisFile.canRead())
                         {
-                            if (file.getAbsolutePath().contains(arg))
+                            tokenScriptFile = thisFile;
+                        }
+                        else
+                        {
+                            File thisDirectory = new File(".");
+                            File[] files = thisDirectory.listFiles();
+                            for (File file : files)
                             {
-                                tokenScriptFile = file;
-                                break;
+                                if (file.getAbsolutePath().contains(arg))
+                                {
+                                    tokenScriptFile = file;
+                                    break;
+                                }
                             }
                         }
                     }
