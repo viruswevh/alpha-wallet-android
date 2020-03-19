@@ -2,7 +2,9 @@ package com.alphawallet.token.tools;
 
 import com.alphawallet.token.entity.*;
 import org.w3c.dom.*;
+import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -670,7 +672,7 @@ public class TokenDefinition {
         }
     }
 
-    private void parseOrigins(Element origins)
+    private void parseOrigins(Element origins) throws SAXParseException
     {
         for (Node n = origins.getFirstChild(); n != null; n = n.getNextSibling())
         {
@@ -690,36 +692,82 @@ public class TokenDefinition {
         }
     }
 
-    private void handleAddresses(Element contract)
+    private void handleAddresses(Element contract) throws Exception
     {
-        NodeList nList = contract.getElementsByTagNameNS(nameSpace, "address");
         ContractInfo info = new ContractInfo();
         String name = contract.getAttribute("name");
         info.contractInterface = contract.getAttribute("interface");
         contracts.put(name, info);
 
-        for (int addrIndex = 0; addrIndex < nList.getLength(); addrIndex++)
+        for (Node n = contract.getFirstChild(); n != null; n = n.getNextSibling())
         {
-            Node node = nList.item(addrIndex);
-            if (node.getNodeType() == ELEMENT_NODE)
+            if (n.getNodeType() == ELEMENT_NODE)
             {
-                Element addressElement = (Element) node;
-                String networkStr = addressElement.getAttribute("network");
-                int network = 1;
-                if (networkStr != null) network = Integer.parseInt(networkStr);
-                String address = addressElement.getTextContent().toLowerCase();
-                List<String> addresses = info.addresses.get(network);
-                if (addresses == null)
+                Element element = (Element) n;
+                switch (element.getLocalName())
                 {
-                    addresses = new ArrayList<>();
-                    info.addresses.put(network, addresses);
-                }
-
-                if (!addresses.contains(address))
-                {
-                    addresses.add(address);
+                    case "address":
+                        handleAddress(element, info);
+                        break;
+                    case "module":
+                        handleModule(element, info);
+                        break;
                 }
             }
+        }
+    }
+
+    private void handleModule(Element module, ContractInfo info) throws Exception
+    {
+        String moduleName = module.getAttribute("name");
+        if (moduleName == null) throw new Exception("Module requires name");
+
+        for (Node n = module.getFirstChild(); n != null; n = n.getNextSibling())
+        {
+            if (n.getNodeType() == ELEMENT_NODE)
+            {
+                switch (n.getNodeName())
+                {
+                    case "sequence":
+                        handleElementSequence((Element)n, info);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+
+    private void handleElementSequence(Element sequence, ContractInfo info)
+    {
+        for (Node n = sequence.getFirstChild(); n != null; n = n.getNextSibling())
+        {
+            if (n.getNodeType() == ELEMENT_NODE)
+            {
+                Element element = (Element)n;
+                String name = element.getAttribute("name");
+                String type = element.getAttribute("ethereum-type");
+                System.out.println("YOLESS: " + name + " :: " + type);
+            }
+        }
+    }
+
+    private void handleAddress(Element addressElement, ContractInfo info)
+    {
+        String networkStr = addressElement.getAttribute("network");
+        int network = 1;
+        if (networkStr != null) network = Integer.parseInt(networkStr);
+        String address = addressElement.getTextContent().toLowerCase();
+        List<String> addresses = info.addresses.get(network);
+        if (addresses == null)
+        {
+            addresses = new ArrayList<>();
+            info.addresses.put(network, addresses);
+        }
+
+        if (!addresses.contains(address))
+        {
+            addresses.add(address);
         }
     }
 

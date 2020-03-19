@@ -21,6 +21,7 @@ import com.alphawallet.app.interact.FindDefaultNetworkInteract;
 import com.alphawallet.app.interact.GenericWalletInteract;
 import com.alphawallet.app.interact.SetDefaultWalletInteract;
 import com.alphawallet.app.repository.EthereumNetworkRepository;
+import com.alphawallet.app.repository.TokenRepository;
 import com.alphawallet.app.router.HomeRouter;
 import com.alphawallet.app.router.ImportWalletRouter;
 import com.alphawallet.app.service.GasService;
@@ -41,6 +42,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
+import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
 import okhttp3.OkHttpClient;
@@ -227,7 +229,7 @@ public class WalletsViewModel extends BaseViewModel
     private Observable<Wallet> resolveEns(Wallet wallet)
     {
         return Observable.fromCallable(() -> {
-            AWEnsResolver resolver = new AWEnsResolver(getService(EthereumNetworkRepository.MAINNET_ID), gasService);
+            AWEnsResolver resolver = new AWEnsResolver(TokenRepository.getWeb3jService(EthereumNetworkRepository.MAINNET_ID), gasService);
             try
             {
                 wallet.ENSname = resolver.reverseResolve(wallet.address);
@@ -247,6 +249,31 @@ public class WalletsViewModel extends BaseViewModel
             }
             return wallet;
         }).subscribeOn(Schedulers.from(executorService));
+    }
+
+    private Single<String> resolveEns2(Wallet wallet)
+    {
+        return Single.fromCallable(() -> {
+            AWEnsResolver resolver = new AWEnsResolver(TokenRepository.getWeb3jService(EthereumNetworkRepository.MAINNET_ID), gasService);
+            try
+            {
+                wallet.ENSname = resolver.reverseResolve(wallet.address);
+                if (wallet.ENSname != null && wallet.ENSname.length() > 0)
+                {
+                    //check ENS name integrity - it must point to the wallet address
+                    String resolveAddress = resolver.resolve(wallet.ENSname);
+                    if (!resolveAddress.equalsIgnoreCase(wallet.address))
+                    {
+                        wallet.ENSname = null;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                //ignore
+            }
+            return wallet.ENSname != null ? wallet.ENSname : "";
+        });
     }
 
     private Web3j getService(int chainId)
