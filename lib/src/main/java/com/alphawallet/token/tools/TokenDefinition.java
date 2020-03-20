@@ -729,7 +729,9 @@ public class TokenDefinition {
                 switch (n.getNodeName())
                 {
                     case "sequence":
-                        handleElementSequence((Element)n, info);
+                        Module eventModule = handleElementSequence((Element)n);
+                        if (info.eventModules == null) info.eventModules = new HashMap<>();
+                        info.eventModules.put(moduleName, eventModule);
                         break;
                     default:
                         break;
@@ -738,8 +740,30 @@ public class TokenDefinition {
         }
     }
 
-    private void handleElementSequence(Element sequence, ContractInfo info)
+    /*
+    event NameRegistered(string name, bytes32 indexed label, address indexed owner, uint cost, uint expires);
+
+    <asnx:module name="NameRegistered">
+      <sequence>
+        <element name="name" ethereum-type="string"/>
+        <element name="label" ethereum-type="bytes32"/>
+        <element name="owner" ethereum-type="address"/>
+        <element name="cost" ethereum-type="uint"/>
+        <element name="expires" ethereum-type="uint"/>
+      </sequence>
+    </asnx:module>
+
+    <ts:attribute-type id="ensName" syntax="1.3.6.1.4.1.1466.115.121.1.15">
+      <ts:origins>
+        <ts:ethereum event="NameRegistered" filter="label=${tokenId}" select="name"/>
+      </ts:origins>
+    </ts:attribute-type>
+
+     */
+
+    private Module handleElementSequence(Element sequence)
     {
+        Module module = new Module();
         for (Node n = sequence.getFirstChild(); n != null; n = n.getNextSibling())
         {
             if (n.getNodeType() == ELEMENT_NODE)
@@ -748,8 +772,11 @@ public class TokenDefinition {
                 String name = element.getAttribute("name");
                 String type = element.getAttribute("ethereum-type");
                 System.out.println("YOLESS: " + name + " :: " + type);
+                module.sequence.put(name, type);
             }
         }
+
+        return module;
     }
 
     private void handleAddress(Element addressElement, ContractInfo info)
