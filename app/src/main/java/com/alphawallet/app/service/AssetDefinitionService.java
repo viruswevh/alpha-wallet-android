@@ -38,6 +38,7 @@ import com.alphawallet.token.entity.AttributeInterface;
 import com.alphawallet.token.entity.AttributeType;
 import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.ContractInfo;
+import com.alphawallet.token.entity.EventDefinition;
 import com.alphawallet.token.entity.FunctionDefinition;
 import com.alphawallet.token.entity.MethodArg;
 import com.alphawallet.token.entity.NonFungibleToken;
@@ -101,7 +102,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private final Context context;
     private final OkHttpClient okHttpClient;
 
-    private SparseArray<Map<String, TokenScriptFile>> assetDefinitions;
+    private final SparseArray<Map<String, TokenScriptFile>> assetDefinitions;
     private Map<String, Long> assetChecked;                //Mapping of contract address to when they were last fetched from server
     private FileObserver fileObserver;                     //Observer which scans the override directory waiting for file change
     private FileObserver fileObserverQ;                    //Observer for Android Q directory
@@ -112,7 +113,8 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private final TokenLocalSource tokenLocalSource;
     private final AlphaWalletService alphaWalletService;
     private TokenDefinition cachedDefinition = null;
-    private SparseArray<Map<String, SparseArray<String>>> tokenTypeName;
+    private final SparseArray<Map<String, SparseArray<String>>> tokenTypeName;
+    private final List<EventDefinition> eventList = new ArrayList<>();
 
     private final TokenscriptFunction tokenscriptUtility;
 
@@ -130,6 +132,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         alphaWalletService = alphaService;
         this.tokensService = tokensService;
         tokenscriptUtility = new TokenscriptFunction() { }; //no overriden functions
+        assetDefinitions = new SparseArray<>();
         tokenLocalSource = trs;
 
         loadLocalContracts();
@@ -137,8 +140,6 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
 
     private void loadLocalContracts()
     {
-        assetDefinitions = new SparseArray<>();
-
         try
         {
             loadContracts(context.getFilesDir());

@@ -8,5 +8,6 @@ import java.util.Map;
  */
 public class Module
 {
+    public ContractInfo contractInfo;
     public Map<String, String> sequence = new HashMap<>();
 }

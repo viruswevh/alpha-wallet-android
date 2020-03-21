@@ -23,7 +23,7 @@ dependencies {
 }
 
 run {
-    args = ["-tokenscript", "c:\\users\\james\\ts\\mjresidenceEvent.xml", "-address", "0xd915c8ad3241f459a45adcbbf8af42caa561a154"]
+    args = ["-tokenscript", "c:\\users\\james\\ts\\ens.xml", "-address", "0xd915c8ad3241f459a45adcbbf8af42caa561a154"]
 }
 
 task wrapper(type: Wrapper) {

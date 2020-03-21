@@ -34,6 +34,7 @@ public class AttributeType {
     public Map<BigInteger, String> members;
     private TokenDefinition definition;
     public FunctionDefinition function = null;
+    public EventDefinition event = null;
     public boolean userInput = false;
 
     public AttributeType(Element attr, TokenDefinition def)
@@ -66,6 +67,9 @@ public class AttributeType {
                     break;
                 case "1.3.6.1.4.1.1466.115.121.1.27":
                     syntax = TokenDefinition.Syntax.Integer;
+                    break;
+                case "1.3.6.1.4.1.1466.115.121.1.15":
+                    syntax = TokenDefinition.Syntax.DirectoryString;
                     break;
                 default: // unknown syntax treat as Directory String
                     syntax = TokenDefinition.Syntax.DirectoryString;
@@ -119,7 +123,14 @@ public class AttributeType {
                 switch (node.getLocalName())
                 {
                     case "ethereum":
-                        function = definition.parseFunction(resolve, syntax);
+                        if (resolve.hasAttribute("event"))
+                        {
+                            event = definition.parseEvent(resolve, syntax);
+                        }
+                        else if (resolve.hasAttribute("function"))
+                        {
+                            function = definition.parseFunction(resolve, syntax);
+                        }
                         //drop through (no break)
                     case "token-id":
                         //this value is obtained from the token id
