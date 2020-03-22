@@ -280,7 +280,7 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
 
     @Override
     public void onAttachFragment(Fragment fragment) {
-        if (fragment.getTag() != null)
+        if (getContext() != null && fragment.getTag() != null)
         {
             switch (fragment.getTag())
             {
@@ -380,8 +380,7 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
         }
 
         //blank forward / backward arrows
-        next.setAlpha(0.3f);
-        back.setAlpha(0.3f);
+        setBackForwardButtons();
     }
 
     @Override
@@ -415,7 +414,6 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
     @Override
     public void onDappClick(DApp dapp) {
         forwardFragmentStack.clear();
-        System.out.println("Luddite: Clear: " + currentFragment);
         addToBackStack(DAPP_BROWSER);
         loadUrl(dapp.getUrl());
     }
@@ -622,7 +620,7 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
         balance.setVisibility(View.VISIBLE);
         symbol.setVisibility(View.VISIBLE);
         balance.setText(token.getScaledBalance());
-        symbol.setText(token.tokenInfo.symbol);
+        symbol.setText(token.getSymbol());
     }
 
     private void onDefaultWallet(Wallet wallet) {
@@ -896,7 +894,7 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
     //return from the openConfirmation above
     public void handleTransactionCallback(int resultCode, Intent data)
     {
-        if (data == null) return;
+        if (data == null || web3 == null) return;
         Web3Transaction web3Tx = data.getParcelableExtra(C.EXTRA_WEB3TRANSACTION);
         if (resultCode == RESULT_OK && web3Tx != null)
         {
@@ -1073,6 +1071,7 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
     @Override
     public void onWebpageLoaded(String url, String title)
     {
+        if (getContext() == null) return; //could be a late return from dead fragment
         if (homePressed)
         {
             homePressed = false;
@@ -1093,28 +1092,36 @@ public class DappBrowserFragment extends Fragment implements OnSignTransactionLi
         handler.post(this::setBackForwardButtons); //execute on UI thread
     }
 
-    private void setBackForwardButtons() {
-        WebBackForwardList sessionHistory = web3.copyBackForwardList();
+    private void setBackForwardButtons()
+    {
+        WebBackForwardList sessionHistory = null;
+        if (web3 != null) sessionHistory = web3.copyBackForwardList();
 
         String nextFrag = forwardFragmentStack.peekLast();
         String backFrag = backFragmentStack.peekLast();
 
-        if (backFrag != null || (currentFragment.equals(DAPP_BROWSER) && web3.canGoBack()))
+        if (back != null)
         {
-            back.setAlpha(1.0f);
-        }
-        else
-        {
-            back.setAlpha(0.3f);
+            if (backFrag != null || (currentFragment.equals(DAPP_BROWSER) && (web3 != null && web3.canGoBack())))
+            {
+                back.setAlpha(1.0f);
+            }
+            else
+            {
+                back.setAlpha(0.3f);
+            }
         }
 
-        if (nextFrag != null || (currentFragment.equals(DAPP_BROWSER) && sessionHistory.getCurrentIndex() < sessionHistory.getSize() - 1))
+        if (next != null)
         {
-            next.setAlpha(1.0f);
-        }
-        else
-        {
-            next.setAlpha(0.3f);
+            if (nextFrag != null || (currentFragment.equals(DAPP_BROWSER) && (sessionHistory != null && sessionHistory.getCurrentIndex() < sessionHistory.getSize() - 1)))
+            {
+                next.setAlpha(1.0f);
+            }
+            else
+            {
+                next.setAlpha(0.3f);
+            }
         }
     }
 

@@ -132,6 +132,8 @@ public class MyAddressActivity extends BaseActivity implements View.OnClickListe
         networkIcon = findViewById(R.id.network_icon);
         functionBar = findViewById(R.id.layoutButtons);
         qrImageView.setBackgroundResource(R.color.white);
+
+        if (viewModel == null) initViewModel();
     }
 
     private void initViewModel() {
@@ -230,7 +232,7 @@ public class MyAddressActivity extends BaseActivity implements View.OnClickListe
         findViewById(R.id.toolbar_title).setVisibility(View.GONE);
         setTitle("");
         titleView.setVisibility(View.VISIBLE);
-        if (token == null) token = EthereumNetworkRepository.getBlankOverrideToken(networkInfo);
+        if (token == null) token = viewModel.getEthereumNetworkRepository().getBlankOverrideToken(networkInfo);
         currentMode = MODE_POS;
         address.setVisibility(View.GONE);
         selectAddress.setVisibility(View.GONE);
@@ -302,8 +304,9 @@ public class MyAddressActivity extends BaseActivity implements View.OnClickListe
                 int networkId = data.getIntExtra(C.EXTRA_CHAIN_ID, -1);
                 NetworkInfo info = viewModel.setNetwork(networkId);
 
-                // restart activity
-                if (info != null && networkInfo.chainId != info.chainId) {
+                // restart activity if required
+                if (info != null && (networkInfo == null || networkInfo.chainId != info.chainId))
+                {
                     Intent intent = getIntent();
                     intent.putExtra(KEY_MODE, MODE_POS);
                     intent.putExtra(OVERRIDE_DEFAULT, info.chainId);

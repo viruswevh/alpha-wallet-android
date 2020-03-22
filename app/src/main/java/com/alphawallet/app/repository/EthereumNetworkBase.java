@@ -8,6 +8,7 @@ import com.alphawallet.app.C;
 import com.alphawallet.app.entity.ContractResult;
 import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.entity.NetworkInfo;
+import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokens.TokenInfo;
 import com.alphawallet.app.entity.tokens.TokenTicker;
@@ -41,7 +42,8 @@ public abstract class EthereumNetworkBase implements EthereumNetworkRepositoryTy
        These hardcoded keys are fallbacks used by AlphaWallet forks.
      */
     public static final String BACKUP_INFURA_KEY = "da3717f25f824cc1baa32d812386d93f";
-    public static final String MAINNET_RPC_URL = "https://rpc.web3api.io?x-api-key=" + BuildConfig.AmberdataAPI;
+    public static final String MAINNET_FALLBACK_RPC_URL = "https://ropsten.infura.io/v3/" + BuildConfig.InfuraAPI;
+    public static final String MAINNET_RPC_URL = !BuildConfig.AmberdataAPI.startsWith("obtain") ? "https://rpc.web3api.io?x-api-key=" + BuildConfig.AmberdataAPI : MAINNET_FALLBACK_RPC_URL;
     public static final String CLASSIC_RPC_URL = "https://ethereumclassic.network";
     public static final String XDAI_RPC_URL = "https://dai.poa.network";
     public static final String POA_RPC_URL = "https://core.poa.network/";
@@ -283,7 +285,7 @@ public abstract class EthereumNetworkBase implements EthereumNetworkRepositoryTy
 
     private TokenTicker checkTicker(TokenTicker ticker, TokenTicker oldTicker)
     {
-        if (ticker.updateTime > 0) return ticker;
+        if (ticker != null && ticker.updateTime > 0) return ticker;
         else return oldTicker;
     }
 
@@ -430,7 +432,7 @@ public abstract class EthereumNetworkBase implements EthereumNetworkRepositoryTy
     @Override
     public void refreshTickers()
     {
-        tickerService.updateTickers();
+        tickerService.updateTickers(true);
     }
 
     public static String defaultDapp()
@@ -438,9 +440,26 @@ public abstract class EthereumNetworkBase implements EthereumNetworkRepositoryTy
         return null;
     }
 
-    public static Token getBlankOverrideToken(NetworkInfo networkInfo)
+    public Token getBlankOverrideToken(NetworkInfo networkInfo)
     {
         return createCurrencyToken(networkInfo);
+    }
+
+    public Single<Token[]> getBlankOverrideTokens(Wallet wallet)
+    {
+        return Single.fromCallable(() -> {
+            if (getBlankOverrideToken() == null)
+            {
+                return new Token[0];
+            }
+            else
+            {
+                Token[] tokens = new Token[1];
+                tokens[0] = getBlankOverrideToken();
+                tokens[0].setTokenWallet(wallet.address);
+                return tokens;
+            }
+        });
     }
 
     private static Token createCurrencyToken(NetworkInfo network)
@@ -454,7 +473,7 @@ public abstract class EthereumNetworkBase implements EthereumNetworkRepositoryTy
         return eth;
     }
 
-    public static Token getBlankOverrideToken()
+    public Token getBlankOverrideToken()
     {
         return null;
     }

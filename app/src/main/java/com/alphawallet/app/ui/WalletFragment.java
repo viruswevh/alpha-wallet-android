@@ -92,8 +92,7 @@ public class WalletFragment extends Fragment implements OnTokenClickListener, Vi
         systemView = view.findViewById(R.id.system_view);
         progressView = view.findViewById(R.id.progress_view);
         progressView.hide();
-
-        progressView.setWhiteCircle();
+        systemView.hide();
 
         listView = view.findViewById(R.id.list);
 
@@ -144,7 +143,7 @@ public class WalletFragment extends Fragment implements OnTokenClickListener, Vi
         ((HomeActivity)getActivity()).showBackupWalletDialog(wallet.lastBackupTime > 0);
     }
 
-    private void refreshList()
+    public void refreshList()
     {
         adapter.clear();
         viewModel.reloadTokens();
@@ -174,45 +173,55 @@ public class WalletFragment extends Fragment implements OnTokenClickListener, Vi
 
     private void initTabLayout(View view) {
         TabLayout tabLayout = view.findViewById(R.id.tab_layout);
-        if (VisibilityFilter.hideTabBar()) { tabLayout.setVisibility(View.GONE); return; }
-        tabLayout.addTab(tabLayout.newTab().setText(R.string.all));
-        tabLayout.addTab(tabLayout.newTab().setText(R.string.currency));
-        tabLayout.addTab(tabLayout.newTab().setText(R.string.collectibles));
+        if (VisibilityFilter.hideTabBar())
+        {
+            hideTabBar(view);
+        }
+        else
+        {
+            tabLayout.addTab(tabLayout.newTab().setText(R.string.all));
+            tabLayout.addTab(tabLayout.newTab().setText(R.string.currency));
+            tabLayout.addTab(tabLayout.newTab().setText(R.string.collectibles));
 
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                switch(tab.getPosition()) {
-                    case 0:
-                        adapter.setFilterType(TokensAdapter.FILTER_ALL);
-                        viewModel.fetchTokens();
-                        break;
-                    case 1:
-                        adapter.setFilterType(TokensAdapter.FILTER_CURRENCY);
-                        viewModel.fetchTokens();
-                        break;
-                    case 2:
-                        adapter.setFilterType(TokensAdapter.FILTER_COLLECTIBLES);
-                        viewModel.fetchTokens();
-                        break;
-                    default:
-                        break;
+            tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener()
+            {
+                @Override
+                public void onTabSelected(TabLayout.Tab tab)
+                {
+                    switch (tab.getPosition())
+                    {
+                        case 0:
+                            adapter.setFilterType(TokensAdapter.FILTER_ALL);
+                            viewModel.fetchTokens();
+                            break;
+                        case 1:
+                            adapter.setFilterType(TokensAdapter.FILTER_CURRENCY);
+                            viewModel.fetchTokens();
+                            break;
+                        case 2:
+                            adapter.setFilterType(TokensAdapter.FILTER_COLLECTIBLES);
+                            viewModel.fetchTokens();
+                            break;
+                        default:
+                            break;
+                    }
                 }
-            }
 
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) {
+                @Override
+                public void onTabUnselected(TabLayout.Tab tab)
+                {
 
-            }
+                }
 
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) {
+                @Override
+                public void onTabReselected(TabLayout.Tab tab)
+                {
 
-            }
-        });
+                }
+            });
+        }
 
-        //TabUtils.changeTabsFont(getContext(), tabLayout);
-        //TabUtils.reflex(tabLayout);
+        TabUtils.changeTabsFont(getContext(), tabLayout);
     }
 
     private void onTotal(BigDecimal totalInCurrency) {
@@ -379,7 +388,20 @@ public class WalletFragment extends Fragment implements OnTokenClickListener, Vi
         //first abort the current operation
         viewModel.clearProcess();
         adapter.clear();
-        //viewModel.prepare();
+        viewModel.fetchTokens();
+    }
+
+    @Override
+    public void refreshTokens()
+    {
+        //only update the tokens in place if something has changed, using TokenSortedItem rules.
+        viewModel.fetchTokens();
+        systemView.showProgress(false); //indicate update complete
+    }
+
+    public void indicateFetch()
+    {
+        systemView.showCentralSpinner();
     }
 
     @Override
@@ -550,5 +572,15 @@ public class WalletFragment extends Fragment implements OnTokenClickListener, Vi
             background.draw(c);
             icon.draw(c);
         }
+    }
+
+    public Wallet getCurrentWallet()
+    {
+        return viewModel.getWallet();
+    }
+
+    public void hideTabBar(View view)
+    {
+        view.findViewById(R.id.tab_layout).setVisibility(View.GONE);
     }
 }

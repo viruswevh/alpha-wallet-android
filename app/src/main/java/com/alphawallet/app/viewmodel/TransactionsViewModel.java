@@ -224,7 +224,6 @@ public class TransactionsViewModel extends BaseViewModel
 
     public void prepare()
     {
-        progress.postValue(true);
         disposable = genericWalletInteract
                 .find()
                 .subscribe(this::onDefaultWallet, this::onError);
@@ -279,6 +278,7 @@ public class TransactionsViewModel extends BaseViewModel
 
         this.transactions.postValue(txMap.values().toArray(new Transaction[0]));
         fetchTransactionDisposable = null;
+        if (transactions.length == 0) showEmpty.postValue(true);
     }
 
     private void checkTokenTransactions(Transaction tx)

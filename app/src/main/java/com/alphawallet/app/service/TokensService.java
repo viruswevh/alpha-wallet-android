@@ -7,7 +7,9 @@ import com.alphawallet.app.entity.ContractResult;
 import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokens.TokenTicker;
+import com.alphawallet.app.interact.GenericWalletInteract;
 import com.alphawallet.app.repository.EthereumNetworkRepositoryType;
+import com.alphawallet.app.repository.PreferenceRepositoryType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +32,10 @@ public class TokensService
     private final OkHttpClient okHttpClient;
     private int currencyCheckCount;
 
-    public TokensService(EthereumNetworkRepositoryType ethereumNetworkRepository, RealmManager realmManager, OkHttpClient client) {
+    public TokensService(EthereumNetworkRepositoryType ethereumNetworkRepository,
+                         RealmManager realmManager,
+                         OkHttpClient client,
+                         PreferenceRepositoryType preferenceRepository) {
         this.ethereumNetworkRepository = ethereumNetworkRepository;
         this.realmManager = realmManager;
         loaded = false;
@@ -39,6 +44,7 @@ public class TokensService
         focusToken = null;
         okHttpClient = client;
         currencyCheckCount = 0;
+        setCurrentAddress(preferenceRepository.getCurrentWalletAddress()); //set current wallet address at service startup
     }
 
     /**
@@ -139,7 +145,7 @@ public class TokensService
         Token token = getToken(chainId, addr);
         if (token != null)
         {
-            symbol = token.tokenInfo.symbol;
+            symbol = token.getSymbol();
         }
 
         return symbol;
@@ -266,9 +272,9 @@ public class TokensService
         return unknowns;
     }
 
-    public void setCurrentAddress(String currentAddress)
+    public void setCurrentAddress(String newWalletAddr)
     {
-        this.currentAddress = currentAddress.toLowerCase();
+        if (newWalletAddr != null) this.currentAddress = newWalletAddr.toLowerCase();
     }
     public String getCurrentAddress() { return this.currentAddress; }
 

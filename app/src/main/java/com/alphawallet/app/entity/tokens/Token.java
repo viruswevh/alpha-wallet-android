@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import android.util.Base64;
 import android.view.View;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.ContractType;
@@ -24,6 +25,7 @@ import com.alphawallet.app.viewmodel.BaseViewModel;
 import com.alphawallet.app.web3.Web3TokenView;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.TokenScriptResult;
+import com.alphawallet.token.tools.TokenDefinition;
 
 import org.web3j.abi.datatypes.Function;
 import org.web3j.utils.Numeric;
@@ -36,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -241,6 +244,12 @@ public class Token implements Parcelable, Comparable<Token>
         } else {
             return getFullName();
         }
+    }
+
+    public String getSymbol()
+    {
+        if (tokenInfo.symbol == null) return "";
+        else return tokenInfo.symbol.toUpperCase();
     }
 
     public void clickReact(BaseViewModel viewModel, Context context)
@@ -503,7 +512,7 @@ public class Token implements Parcelable, Comparable<Token>
 
     public boolean checkBalanceChange(Token token)
     {
-        return token != null && (!getFullBalance().equals(token.getFullBalance()) || !tokenInfo.name.equals(token.tokenInfo.name));
+        return token != null && (!getFullBalance().equals(token.getFullBalance()) || !getFullName().equals(token.getFullName()));
     }
 
     public String getPendingDiff()
@@ -598,11 +607,6 @@ public class Token implements Parcelable, Comparable<Token>
     public void checkIsMatchedInXML(AssetDefinitionService assetService) { }
     public int[] getTicketIndices(String ticketIds) { return new int[0]; }
     public boolean contractTypeValid() { return !(contractType == ContractType.NOT_SET || contractType == ContractType.OTHER); }
-
-    public void displayTicketHolder(TicketRange range, View activity, AssetDefinitionService assetService, Context ctx, boolean iconified) { }
-    public void displayTicketHolder(TicketRange range, View activity, AssetDefinitionService assetService, Context ctx) {
-        displayTicketHolder(range, activity, assetService, ctx, false);
-    }
     public List<BigInteger> getArrayBalance() { return new ArrayList<>(); }
     public List<BigInteger> getNonZeroArrayBalance() { return new ArrayList<>(Arrays.asList(BigInteger.ZERO)); }
     public boolean isMatchedInXML() { return false; }
@@ -958,6 +962,12 @@ public class Token implements Parcelable, Comparable<Token>
         return contractType == ContractType.ETHEREUM;
     }
     public boolean isERC721Ticket() { return false; }
+    public boolean hasGroupedTransfer() { return false; } //Can the NFT token's transfer function handle multiple tokens?
+    public boolean checkSelectionValidity(List<BigInteger> selection) //check a selection of ID's for Transfer/Redeem/Sell
+    {
+        return selection.size() != 0 && (selection.size() == 1 || hasGroupedTransfer());
+    }
+
 
     public BigDecimal getCorrectedAmount(String newAmount)
     {
@@ -1009,6 +1019,55 @@ public class Token implements Parcelable, Comparable<Token>
     /**
      * Common TokenScript methods
      */
+
+    public void displayTicketHolder(TicketRange range, View activity, AssetDefinitionService assetService, Context ctx) {
+        displayTicketHolder(range, activity, assetService, ctx, false);
+    }
+
+    /**
+     * This is a single method that populates any instance of graphic ticket anywhere
+     *
+     * @param range
+     * @param activity
+     * @param assetService
+     * @param ctx needed to create date/time format objects
+     */
+    public void displayTicketHolder(TicketRange range, View activity, AssetDefinitionService assetService, Context ctx, boolean iconified)
+    {
+        //need to wait until the assetDefinitionService has finished loading assets
+        assetService.getAssetDefinitionASync(tokenInfo.chainId, tokenInfo.address)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(td -> renderTicketHolder(td, range, activity, assetService, ctx, iconified), this::loadingError).isDisposed();
+    }
+
+    private void loadingError(Throwable e)
+    {
+        e.printStackTrace();
+    }
+
+    private void renderTicketHolder(TokenDefinition td, TicketRange range, View activity, AssetDefinitionService assetService, Context ctx, boolean iconified)
+    {
+        if (td != null && td.holdingToken != null)
+        {
+            //use webview
+            displayTokenscriptView(range, assetService, activity, ctx, iconified);
+        }
+        else
+        {
+            activity.findViewById(R.id.layout_legacy).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.layout_webwrapper).setVisibility(View.GONE);
+
+            TextView amount = activity.findViewById(R.id.amount);
+            TextView name = activity.findViewById(R.id.name);
+
+            String nameStr = getTokenTitle();
+            String seatCount = String.format(Locale.getDefault(), "x%d", range.tokenIds.size());
+
+            name.setText(nameStr);
+            amount.setText(seatCount);
+        }
+    }
 
     protected void displayTokenscriptView(TicketRange range, AssetDefinitionService assetService, View activity, Context ctx, boolean iconified)
     {
@@ -1063,8 +1122,9 @@ public class Token implements Parcelable, Comparable<Token>
 
     public boolean checkTickerChange(Token check)
     {
-        if (check.ticker == null && ticker != null) return true; //now has ticker
-        else return check.ticker != null && ticker != null && !check.ticker.price.equals(ticker.price); //return true if ticker changed
+        if (check.ticker == null && ticker == null) return false;
+        else if (check.ticker == null || ticker == null) return true; //ticker situation changed
+        else return !check.ticker.price.equals(ticker.price); //return true if ticker changed
     }
 
     @Override

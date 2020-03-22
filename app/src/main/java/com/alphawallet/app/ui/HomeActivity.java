@@ -209,6 +209,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
 
         systemView.attachRecyclerView(list);
         systemView.attachSwipeRefreshLayout(refreshLayout);
+        systemView.showProgress(false);
 
         viewModel.progress().observe(this, systemView::showProgress);
         viewModel.error().observe(this, this::onError);
@@ -221,8 +222,6 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         } else {
             showPage(WALLET);
         }
-
-        viewModel.loadExternalXMLContracts();
 
         if (VisibilityFilter.hideDappBrowser())
         {
@@ -353,7 +352,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         switch (viewPager.getCurrentItem())
         {
             case WALLET:
-                getMenuInflater().inflate(R.menu.menu_add, menu);
+                if (VisibilityFilter.canAddTokens()) getMenuInflater().inflate(R.menu.menu_add, menu);
                 break;
             default:
                 break;
@@ -426,7 +425,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     }
 
     private void openExchangeDialog() {
-        Wallet wallet = viewModel.defaultWallet().getValue();
+        Wallet wallet = ((WalletFragment)walletFragment).getCurrentWallet();
         if (wallet == null) {
             Toast.makeText(this, getString(R.string.error_wallet_not_selected), Toast.LENGTH_SHORT)
                     .show();
@@ -440,8 +439,12 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         }
     }
 
-    private void onDepositClick(View view, Uri uri) {
-        viewModel.openDeposit(view.getContext(), uri);
+    private void onDepositClick(View view, String url)
+    {
+        showPage(DAPP_BROWSER);
+        ((DappBrowserFragment)dappBrowserFragment).onItemClick(url);
+        dialog.dismiss();
+        dialog = null;
     }
 
     @Override
@@ -763,7 +766,6 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             case RC_DOWNLOAD_EXTERNAL_WRITE_PERM:
                 if (hasPermission(permissions, grantResults))
                 {
-                    viewModel.loadExternalXMLContracts();
                     ((NewSettingsFragment)settingsFragment).refresh();
                 }
                 break;
@@ -870,6 +872,9 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             case C.UPDATE_LOCALE:
                 updateLocale(data);
                 break;
+            case C.UPDATE_CURRENCY:
+                updateCurrency(data);
+                break;
             default:
                 super.onActivityResult(requestCode, resultCode, data);
                 break;
@@ -937,5 +942,17 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         String newLocale = data.getStringExtra(C.EXTRA_LOCALE);
         sendBroadcast(new Intent(CHANGED_LOCALE));
         viewModel.updateLocale(newLocale, this);
+    }
+
+    public void updateCurrency(Intent data)
+    {
+        if (data == null) return;
+        String currencyCode = data.getStringExtra(C.EXTRA_CURRENCY);
+
+        //Check if selected currency code is previous selected one then don't update
+        if(viewModel.getDefaultCurrency().equals(currencyCode)) return;
+
+        viewModel.updateCurrency(currencyCode);
+        ((WalletFragment)walletFragment).indicateFetch();
     }
 }
