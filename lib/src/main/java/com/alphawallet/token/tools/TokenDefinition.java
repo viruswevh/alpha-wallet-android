@@ -87,6 +87,7 @@ public class TokenDefinition {
             switch (thisAttr.getNodeName())
             {
                 case "event":
+                    ev.eventName = attrValue;
                     ev.eventModule = moduleLookup.get(attrValue);
                     break;
                 case "filter":

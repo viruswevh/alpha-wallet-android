@@ -7,6 +7,7 @@ import com.alphawallet.token.tools.TokenDefinition;
  */
 public class EventDefinition
 {
+    public String eventName;
     public Module eventModule;
     public String filter;
     public String select;

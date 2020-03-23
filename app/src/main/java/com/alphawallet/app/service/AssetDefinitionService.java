@@ -22,6 +22,7 @@ import com.alphawallet.app.entity.opensea.Asset;
 import com.alphawallet.app.entity.tokens.ERC721Token;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokens.TokenFactory;
+import com.alphawallet.app.entity.tokenscript.FunctionUtils;
 import com.alphawallet.app.entity.tokenscript.TokenScriptFile;
 import com.alphawallet.app.entity.tokenscript.TokenscriptFunction;
 import com.alphawallet.app.repository.EthereumNetworkRepositoryType;
@@ -46,10 +47,16 @@ import com.alphawallet.token.entity.TransactionResult;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
 import com.alphawallet.token.tools.TokenDefinition;
 
+import org.web3j.abi.EventEncoder;
 import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.WalletUtils;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.DefaultBlockParameterName;
+import org.web3j.protocol.core.methods.response.EthLog;
+import org.web3j.protocol.core.methods.response.Log;
 import org.xml.sax.SAXException;
 
 import java.io.BufferedOutputStream;
@@ -85,6 +92,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 
 import static com.alphawallet.app.C.ADDED_TOKEN;
+import static com.alphawallet.app.repository.TokenRepository.getWeb3jService;
 import static com.alphawallet.token.tools.TokenDefinition.TOKENSCRIPT_CURRENT_SCHEMA;
 import static com.alphawallet.token.tools.TokenDefinition.TOKENSCRIPT_REPO_SERVER;
 
@@ -802,7 +810,22 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
 
     private Disposable beginEventListener(EventDefinition ev, Token originToken)
     {
-        sdfsdf
+        Web3j web3j = getWeb3jService(originToken.tokenInfo.chainId);
+        List<TypeReference<?>> eventArgSpec = FunctionUtils.generateFunctionDefinition(ev.eventModule.sequence);
+
+        final Event resolverEvent = new Event(ev.eventName, eventArgSpec);
+
+        final org.web3j.protocol.core.methods.request.EthFilter filter =
+                new org.web3j.protocol.core.methods.request.EthFilter(
+                        DefaultBlockParameterName.EARLIEST,
+                        DefaultBlockParameterName.LATEST,
+                        originToken.getAddress())
+                        .addSingleTopic(EventEncoder.encode(resolverEvent));
+
+        return web3j.ethLogFlowable(filter).subscribe(log -> {
+            System.out.println("log.toString(): " +  log.toString());
+            //TODO here: callback to event service listener
+        });
     }
 
     private boolean allowableExtension(File file)
