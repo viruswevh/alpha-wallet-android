@@ -12,5 +12,5 @@ public class ContractInfo
 {
     public String contractInterface = null;
     public Map<Integer, List<String>> addresses = new HashMap<>();
-    public Map<String, Module> eventModules;
+    public Map<String, Module> eventModules = null;
 }

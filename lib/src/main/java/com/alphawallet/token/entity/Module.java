@@ -1,5 +1,7 @@
 package com.alphawallet.token.entity;
 
+import com.alphawallet.token.tools.TokenDefinition;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -8,6 +10,13 @@ import java.util.Map;
  */
 public class Module
 {
-    public ContractInfo contractInfo;
+    public final ContractInfo originToken;
+    public final ContractInfo contractInfo;
     public Map<String, String> sequence = new HashMap<>();
+
+    public Module(ContractInfo origin, ContractInfo info)
+    {
+        originToken = origin;
+        contractInfo = info;
+    }
 }

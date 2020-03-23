@@ -762,11 +762,10 @@ public class TokenDefinition {
                 switch (n.getNodeName())
                 {
                     case "sequence":
-                        Module eventModule = handleElementSequence((Element)n);
+                        Module eventModule = handleElementSequence((Element)n, info);
                         if (info.eventModules == null) info.eventModules = new HashMap<>();
                         info.eventModules.put(moduleName, eventModule);
                         moduleLookup.put(moduleName, eventModule);
-                        eventModule.contractInfo = info;
                         break;
                     default:
                         break;
@@ -796,9 +795,9 @@ public class TokenDefinition {
 
      */
 
-    private Module handleElementSequence(Element sequence)
+    private Module handleElementSequence(Element sequence, ContractInfo info)
     {
-        Module module = new Module();
+        Module module = new Module(contracts.get(holdingToken), info);
         for (Node n = sequence.getFirstChild(); n != null; n = n.getNextSibling())
         {
             if (n.getNodeType() == ELEMENT_NODE)

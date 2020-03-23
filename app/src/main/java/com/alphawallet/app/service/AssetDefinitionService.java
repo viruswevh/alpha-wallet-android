@@ -47,6 +47,7 @@ import com.alphawallet.token.entity.XMLDsigDescriptor;
 import com.alphawallet.token.tools.TokenDefinition;
 
 import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.WalletUtils;
 import org.xml.sax.SAXException;
@@ -75,6 +76,7 @@ import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.observers.DisposableCompletableObserver;
 import io.reactivex.schedulers.Schedulers;
 import io.realm.Realm;
@@ -111,12 +113,16 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private final AlphaWalletService alphaWalletService;
     private TokenDefinition cachedDefinition = null;
     private final SparseArray<Map<String, SparseArray<String>>> tokenTypeName;
-    private final List<EventDefinition> eventList = new ArrayList<>();
+    private final List<Disposable> eventListeners = new ArrayList<>(); //List of schema events being listened to
+    private final List<EventDefinition> eventList = new ArrayList<>(); //List of events built during file load
     private final Semaphore assetLoadingLock;  // used to block if someone calls getAssetDefinitionASync() while loading
 
     private final TokenscriptFunction tokenscriptUtility;
 
-    /* Designed with the assmuption that only a single instance of this class at any given time */
+    /* Designed with the assmuption that only a single instance of this class at any given time
+    *  ^^ The "service" part of AssetDefinitionService is the keyword here.
+    *  This is shorthand in the project to indicate this is a singleton that other classes inject.
+    *  This is the design pattern of the app. See class RepositoriesModule for constructors which are called at App init only */
     public AssetDefinitionService(OkHttpClient client, Context ctx, NotificationService svs,
                                   RealmManager rm, EthereumNetworkRepositoryType eth, TokensService tokensService,
                                   TokenLocalSource trs, AlphaWalletService alphaService)
@@ -130,7 +136,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         ethereumNetworkRepository = eth;
         alphaWalletService = alphaService;
         this.tokensService = tokensService;
-        tokenscriptUtility = new TokenscriptFunction() { }; //no overriden functions
+        tokenscriptUtility = new TokenscriptFunction() { }; //no overridden functions
         assetDefinitions = new SparseArray<>();
         tokenLocalSource = trs;
         assetLoadingLock = new Semaphore(1);
@@ -730,10 +736,11 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private boolean addContractAddresses(File file)
     {
         try (FileInputStream input = new FileInputStream(file)) {
-            TokenDefinition token = parseFile(input);
-            ContractInfo holdingContracts = token.contracts.get(token.holdingToken);
+            TokenDefinition tokenDef = parseFile(input);
+            ContractInfo holdingContracts = tokenDef.contracts.get(tokenDef.holdingToken);
             if (holdingContracts != null)
             {
+                addToEventList(tokenDef);
                 for (int network : holdingContracts.addresses.keySet())
                 {
                     addContractsToNetwork(network, networkAddresses(holdingContracts.addresses.get(network), file.getAbsolutePath()));
@@ -744,6 +751,58 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
             e.printStackTrace();
         }
         return false;
+    }
+
+    private void addToEventList(TokenDefinition tokenDef)
+    {
+        for (String attrName : tokenDef.attributeTypes.keySet())
+        {
+            AttributeType attr = tokenDef.attributeTypes.get(attrName);
+            if (attr.event != null)
+            {
+                eventList.add(attr.event); //note: event definition contains link back to the contract it refers to
+            }
+        }
+    }
+
+    public void stopEventListeners()
+    {
+        for (Disposable disposable : eventListeners)
+        {
+            disposable.dispose();
+        }
+
+        eventListeners.clear();
+    }
+
+    public void startEventListeners()
+    {
+        stopEventListeners();
+
+        //check events for corresponding tokens
+        for (EventDefinition ev : eventList)
+        {
+            ContractInfo originContracts = ev.eventModule.originToken;
+            for (int chainId : originContracts.addresses.keySet())
+            {
+                for (String addr : originContracts.addresses.get(chainId))
+                {
+                    //have corresponding token?
+                    Token originToken = tokensService.getToken(chainId, addr);
+                    if (originToken.hasPositiveBalance())
+                    {
+                        //initiate listener
+                        Disposable d = beginEventListener(ev, originToken);
+                        eventListeners.add(d);
+                    }
+                }
+            }
+        }
+    }
+
+    private Disposable beginEventListener(EventDefinition ev, Token originToken)
+    {
+        sdfsdf
     }
 
     private boolean allowableExtension(File file)
