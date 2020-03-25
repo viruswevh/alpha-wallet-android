@@ -1,5 +1,7 @@
 package com.alphawallet.app.entity.tokenscript;
 
+import com.alphawallet.token.entity.Module;
+
 import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.BytesType;
@@ -117,319 +119,319 @@ import java.util.Map;
  */
 public abstract class FunctionUtils
 {
-    public static List<TypeReference<?>> generateFunctionDefinition(Map<String, String> sequence)
+    public static List<TypeReference<?>> generateFunctionDefinition(List<Module.SequenceElement> args)
     {
         List<TypeReference<?>> paramList = new ArrayList<>();
-        for (String arg : sequence.values())
+        for (Module.SequenceElement element : args)
         {
-            switch (arg)
+            switch (element.type)
             {
                 case "int":
-                    paramList.add(new TypeReference<Int>() { });
+                    paramList.add(new TypeReference<Int>(element.indexed) { });
                     break;
                 case "int8":
-                    paramList.add(new TypeReference<Int8>() { });
+                    paramList.add(new TypeReference<Int8>(element.indexed) { });
                     break;
                 case "int16":
-                    paramList.add(new TypeReference<Int16>() { });
+                    paramList.add(new TypeReference<Int16>(element.indexed) { });
                     break;
                 case "int24":
-                    paramList.add(new TypeReference<Int24>() { });
+                    paramList.add(new TypeReference<Int24>(element.indexed) { });
                     break;
                 case "int32":
-                    paramList.add(new TypeReference<Int32>() { });
+                    paramList.add(new TypeReference<Int32>(element.indexed) { });
                     break;
                 case "int40":
-                    paramList.add(new TypeReference<Int40>() { });
+                    paramList.add(new TypeReference<Int40>(element.indexed) { });
                     break;
                 case "int48":
-                    paramList.add(new TypeReference<Int48>() { });
+                    paramList.add(new TypeReference<Int48>(element.indexed) { });
                     break;
                 case "int56":
-                    paramList.add(new TypeReference<Int56>() { });
+                    paramList.add(new TypeReference<Int56>(element.indexed) { });
                     break;
                 case "int64":
-                    paramList.add(new TypeReference<Int64>() { });
+                    paramList.add(new TypeReference<Int64>(element.indexed) { });
                     break;
                 case "int72":
-                    paramList.add(new TypeReference<Int72>() { });
+                    paramList.add(new TypeReference<Int72>(element.indexed) { });
                     break;
                 case "int80":
-                    paramList.add(new TypeReference<Int80>() { });
+                    paramList.add(new TypeReference<Int80>(element.indexed) { });
                     break;
                 case "int88":
-                    paramList.add(new TypeReference<Int88>() { });
+                    paramList.add(new TypeReference<Int88>(element.indexed) { });
                     break;
                 case "int96":
-                    paramList.add(new TypeReference<Int96>() { });
+                    paramList.add(new TypeReference<Int96>(element.indexed) { });
                     break;
                 case "int104":
-                    paramList.add(new TypeReference<Int104>() { });
+                    paramList.add(new TypeReference<Int104>(element.indexed) { });
                     break;
                 case "int112":
-                    paramList.add(new TypeReference<Int112>() { });
+                    paramList.add(new TypeReference<Int112>(element.indexed) { });
                     break;
                 case "int120":
-                    paramList.add(new TypeReference<Int120>() { });
+                    paramList.add(new TypeReference<Int120>(element.indexed) { });
                     break;
                 case "int128":
-                    paramList.add(new TypeReference<Int128>() { });
+                    paramList.add(new TypeReference<Int128>(element.indexed) { });
                     break;
                 case "int136":
-                    paramList.add(new TypeReference<Int136>() { });
+                    paramList.add(new TypeReference<Int136>(element.indexed) { });
                     break;
                 case "int144":
-                    paramList.add(new TypeReference<Int144>() { });
+                    paramList.add(new TypeReference<Int144>(element.indexed) { });
                     break;
                 case "int152":
-                    paramList.add(new TypeReference<Int152>() { });
+                    paramList.add(new TypeReference<Int152>(element.indexed) { });
                     break;
                 case "int160":
-                    paramList.add(new TypeReference<Int160>() { });
+                    paramList.add(new TypeReference<Int160>(element.indexed) { });
                     break;
                 case "int168":
-                    paramList.add(new TypeReference<Int168>() { });
+                    paramList.add(new TypeReference<Int168>(element.indexed) { });
                     break;
                 case "int176":
-                    paramList.add(new TypeReference<Int176>() { });
+                    paramList.add(new TypeReference<Int176>(element.indexed) { });
                     break;
                 case "int184":
-                    paramList.add(new TypeReference<Int184>() { });
+                    paramList.add(new TypeReference<Int184>(element.indexed) { });
                     break;
                 case "int192":
-                    paramList.add(new TypeReference<Int192>() { });
+                    paramList.add(new TypeReference<Int192>(element.indexed) { });
                     break;
                 case "int200":
-                    paramList.add(new TypeReference<Int200>() { });
+                    paramList.add(new TypeReference<Int200>(element.indexed) { });
                     break;
                 case "int208":
-                    paramList.add(new TypeReference<Int208>() { });
+                    paramList.add(new TypeReference<Int208>(element.indexed) { });
                     break;
                 case "int216":
-                    paramList.add(new TypeReference<Int216>() { });
+                    paramList.add(new TypeReference<Int216>(element.indexed) { });
                     break;
                 case "int224":
-                    paramList.add(new TypeReference<Int224>() { });
+                    paramList.add(new TypeReference<Int224>(element.indexed) { });
                     break;
                 case "int232":
-                    paramList.add(new TypeReference<Int232>() { });
+                    paramList.add(new TypeReference<Int232>(element.indexed) { });
                     break;
                 case "int240":
-                    paramList.add(new TypeReference<Int240>() { });
+                    paramList.add(new TypeReference<Int240>(element.indexed) { });
                     break;
                 case "int248":
-                    paramList.add(new TypeReference<Int248>() { });
+                    paramList.add(new TypeReference<Int248>(element.indexed) { });
                     break;
                 case "int256":
-                    paramList.add(new TypeReference<Int256>() { });
+                    paramList.add(new TypeReference<Int256>(element.indexed) { });
                     break;
                 case "uint":
-                    paramList.add(new TypeReference<Uint>() { });
+                    paramList.add(new TypeReference<Uint>(element.indexed) { });
                     break;
 
                 case "uint8":
-                    paramList.add(new TypeReference<Uint8>() { });
+                    paramList.add(new TypeReference<Uint8>(element.indexed) { });
                     break;
                 case "uint16":
-                    paramList.add(new TypeReference<Uint16>() { });
+                    paramList.add(new TypeReference<Uint16>(element.indexed) { });
                     break;
                 case "uint24":
-                    paramList.add(new TypeReference<Uint24>() { });
+                    paramList.add(new TypeReference<Uint24>(element.indexed) { });
                     break;
                 case "uint32":
-                    paramList.add(new TypeReference<Uint32>() { });
+                    paramList.add(new TypeReference<Uint32>(element.indexed) { });
                     break;
                 case "uint40":
-                    paramList.add(new TypeReference<Uint40>() { });
+                    paramList.add(new TypeReference<Uint40>(element.indexed) { });
                     break;
                 case "uint48":
-                    paramList.add(new TypeReference<Uint48>() { });
+                    paramList.add(new TypeReference<Uint48>(element.indexed) { });
                     break;
                 case "uint56":
-                    paramList.add(new TypeReference<Uint56>() { });
+                    paramList.add(new TypeReference<Uint56>(element.indexed) { });
                     break;
                 case "uint64":
-                    paramList.add(new TypeReference<Uint64>() { });
+                    paramList.add(new TypeReference<Uint64>(element.indexed) { });
                     break;
                 case "uint72":
-                    paramList.add(new TypeReference<Uint72>() { });
+                    paramList.add(new TypeReference<Uint72>(element.indexed) { });
                     break;
                 case "uint80":
-                    paramList.add(new TypeReference<Uint80>() { });
+                    paramList.add(new TypeReference<Uint80>(element.indexed) { });
                     break;
                 case "uint88":
-                    paramList.add(new TypeReference<Uint88>() { });
+                    paramList.add(new TypeReference<Uint88>(element.indexed) { });
                     break;
                 case "uint96":
-                    paramList.add(new TypeReference<Uint96>() { });
+                    paramList.add(new TypeReference<Uint96>(element.indexed) { });
                     break;
                 case "uint104":
-                    paramList.add(new TypeReference<Uint104>() { });
+                    paramList.add(new TypeReference<Uint104>(element.indexed) { });
                     break;
                 case "uint112":
-                    paramList.add(new TypeReference<Uint112>() { });
+                    paramList.add(new TypeReference<Uint112>(element.indexed) { });
                     break;
                 case "uint120":
-                    paramList.add(new TypeReference<Uint120>() { });
+                    paramList.add(new TypeReference<Uint120>(element.indexed) { });
                     break;
                 case "uint128":
-                    paramList.add(new TypeReference<Uint128>() { });
+                    paramList.add(new TypeReference<Uint128>(element.indexed) { });
                     break;
                 case "uint136":
-                    paramList.add(new TypeReference<Uint136>() { });
+                    paramList.add(new TypeReference<Uint136>(element.indexed) { });
                     break;
                 case "uint144":
-                    paramList.add(new TypeReference<Uint144>() { });
+                    paramList.add(new TypeReference<Uint144>(element.indexed) { });
                     break;
                 case "uint152":
-                    paramList.add(new TypeReference<Uint152>() { });
+                    paramList.add(new TypeReference<Uint152>(element.indexed) { });
                     break;
                 case "uint160":
-                    paramList.add(new TypeReference<Uint160>() { });
+                    paramList.add(new TypeReference<Uint160>(element.indexed) { });
                     break;
                 case "uint168":
-                    paramList.add(new TypeReference<Uint168>() { });
+                    paramList.add(new TypeReference<Uint168>(element.indexed) { });
                     break;
                 case "uint176":
-                    paramList.add(new TypeReference<Uint176>() { });
+                    paramList.add(new TypeReference<Uint176>(element.indexed) { });
                     break;
                 case "uint184":
-                    paramList.add(new TypeReference<Uint184>() { });
+                    paramList.add(new TypeReference<Uint184>(element.indexed) { });
                     break;
                 case "uint192":
-                    paramList.add(new TypeReference<Uint192>() { });
+                    paramList.add(new TypeReference<Uint192>(element.indexed) { });
                     break;
                 case "uint200":
-                    paramList.add(new TypeReference<Uint200>() { });
+                    paramList.add(new TypeReference<Uint200>(element.indexed) { });
                     break;
                 case "uint208":
-                    paramList.add(new TypeReference<Uint208>() { });
+                    paramList.add(new TypeReference<Uint208>(element.indexed) { });
                     break;
                 case "uint216":
-                    paramList.add(new TypeReference<Uint216>() { });
+                    paramList.add(new TypeReference<Uint216>(element.indexed) { });
                     break;
                 case "uint224":
-                    paramList.add(new TypeReference<Uint224>() { });
+                    paramList.add(new TypeReference<Uint224>(element.indexed) { });
                     break;
                 case "uint232":
-                    paramList.add(new TypeReference<Uint232>() { });
+                    paramList.add(new TypeReference<Uint232>(element.indexed) { });
                     break;
                 case "uint240":
-                    paramList.add(new TypeReference<Uint240>() { });
+                    paramList.add(new TypeReference<Uint240>(element.indexed) { });
                     break;
                 case "uint248":
-                    paramList.add(new TypeReference<Uint248>() { });
+                    paramList.add(new TypeReference<Uint248>(element.indexed) { });
                     break;
                 case "uint256":
-                    paramList.add(new TypeReference<Uint256>() { });
+                    paramList.add(new TypeReference<Uint256>(element.indexed) { });
                     break;
                 case "address":
-                    paramList.add(new TypeReference<Address>() { });
+                    paramList.add(new TypeReference<Address>(element.indexed) { });
                     break;
                 case "string":
-                    paramList.add(new TypeReference<Utf8String>() { });
+                    paramList.add(new TypeReference<Utf8String>(element.indexed) { });
                     break;
                 case "bytes":
-                    paramList.add(new TypeReference<BytesType>() { });
+                    paramList.add(new TypeReference<BytesType>(element.indexed) { });
                     break;
                 case "bytes1":
-                    paramList.add(new TypeReference<Bytes1>() { });
+                    paramList.add(new TypeReference<Bytes1>(element.indexed) { });
                     break;
                 case "bytes2":
-                    paramList.add(new TypeReference<Bytes2>() { });
+                    paramList.add(new TypeReference<Bytes2>(element.indexed) { });
                     break;
                 case "bytes3":
-                    paramList.add(new TypeReference<Bytes3>() { });
+                    paramList.add(new TypeReference<Bytes3>(element.indexed) { });
                     break;
                 case "bytes4":
-                    paramList.add(new TypeReference<Bytes4>() { });
+                    paramList.add(new TypeReference<Bytes4>(element.indexed) { });
                     break;
                 case "bytes5":
-                    paramList.add(new TypeReference<Bytes5>() { });
+                    paramList.add(new TypeReference<Bytes5>(element.indexed) { });
                     break;
                 case "bytes6":
-                    paramList.add(new TypeReference<Bytes6>() { });
+                    paramList.add(new TypeReference<Bytes6>(element.indexed) { });
                     break;
                 case "bytes7":
-                    paramList.add(new TypeReference<Bytes7>() { });
+                    paramList.add(new TypeReference<Bytes7>(element.indexed) { });
                     break;
                 case "bytes8":
-                    paramList.add(new TypeReference<Bytes8>() { });
+                    paramList.add(new TypeReference<Bytes8>(element.indexed) { });
                     break;
                 case "bytes9":
-                    paramList.add(new TypeReference<Bytes9>() { });
+                    paramList.add(new TypeReference<Bytes9>(element.indexed) { });
                     break;
                 case "bytes10":
-                    paramList.add(new TypeReference<Bytes10>() { });
+                    paramList.add(new TypeReference<Bytes10>(element.indexed) { });
                     break;
                 case "bytes11":
-                    paramList.add(new TypeReference<Bytes11>() { });
+                    paramList.add(new TypeReference<Bytes11>(element.indexed) { });
                     break;
                 case "bytes12":
-                    paramList.add(new TypeReference<Bytes12>() { });
+                    paramList.add(new TypeReference<Bytes12>(element.indexed) { });
                     break;
                 case "bytes13":
-                    paramList.add(new TypeReference<Bytes13>() { });
+                    paramList.add(new TypeReference<Bytes13>(element.indexed) { });
                     break;
                 case "bytes14":
-                    paramList.add(new TypeReference<Bytes14>() { });
+                    paramList.add(new TypeReference<Bytes14>(element.indexed) { });
                     break;
                 case "bytes15":
-                    paramList.add(new TypeReference<Bytes15>() { });
+                    paramList.add(new TypeReference<Bytes15>(element.indexed) { });
                     break;
                 case "bytes16":
-                    paramList.add(new TypeReference<Bytes16>() { });
+                    paramList.add(new TypeReference<Bytes16>(element.indexed) { });
                     break;
                 case "bytes17":
-                    paramList.add(new TypeReference<Bytes17>() { });
+                    paramList.add(new TypeReference<Bytes17>(element.indexed) { });
                     break;
                 case "bytes18":
-                    paramList.add(new TypeReference<Bytes18>() { });
+                    paramList.add(new TypeReference<Bytes18>(element.indexed) { });
                     break;
                 case "bytes19":
-                    paramList.add(new TypeReference<Bytes19>() { });
+                    paramList.add(new TypeReference<Bytes19>(element.indexed) { });
                     break;
                 case "bytes20":
-                    paramList.add(new TypeReference<Bytes20>() { });
+                    paramList.add(new TypeReference<Bytes20>(element.indexed) { });
                     break;
                 case "bytes21":
-                    paramList.add(new TypeReference<Bytes21>() { });
+                    paramList.add(new TypeReference<Bytes21>(element.indexed) { });
                     break;
                 case "bytes22":
-                    paramList.add(new TypeReference<Bytes22>() { });
+                    paramList.add(new TypeReference<Bytes22>(element.indexed) { });
                     break;
                 case "bytes23":
-                    paramList.add(new TypeReference<Bytes23>() { });
+                    paramList.add(new TypeReference<Bytes23>(element.indexed) { });
                     break;
                 case "bytes24":
-                    paramList.add(new TypeReference<Bytes24>() { });
+                    paramList.add(new TypeReference<Bytes24>(element.indexed) { });
                     break;
                 case "bytes25":
-                    paramList.add(new TypeReference<Bytes25>() { });
+                    paramList.add(new TypeReference<Bytes25>(element.indexed) { });
                     break;
                 case "bytes26":
-                    paramList.add(new TypeReference<Bytes26>() { });
+                    paramList.add(new TypeReference<Bytes26>(element.indexed) { });
                     break;
                 case "bytes27":
-                    paramList.add(new TypeReference<Bytes27>() { });
+                    paramList.add(new TypeReference<Bytes27>(element.indexed) { });
                     break;
                 case "bytes28":
-                    paramList.add(new TypeReference<Bytes28>() { });
+                    paramList.add(new TypeReference<Bytes28>(element.indexed) { });
                     break;
                 case "bytes29":
-                    paramList.add(new TypeReference<Bytes29>() { });
+                    paramList.add(new TypeReference<Bytes29>(element.indexed) { });
                     break;
                 case "bytes30":
-                    paramList.add(new TypeReference<Bytes30>() { });
+                    paramList.add(new TypeReference<Bytes30>(element.indexed) { });
                     break;
                 case "bytes31":
-                    paramList.add(new TypeReference<Bytes31>() { });
+                    paramList.add(new TypeReference<Bytes31>(element.indexed) { });
                     break;
                 case "bytes32":
-                    paramList.add(new TypeReference<Bytes32>() { });
+                    paramList.add(new TypeReference<Bytes32>(element.indexed) { });
                     break;
                 default:
-                    System.out.println("NOT IMPLEMENTED: " + arg);
+                    System.out.println("NOT IMPLEMENTED: " + element.type);
                     break;
             }
         }

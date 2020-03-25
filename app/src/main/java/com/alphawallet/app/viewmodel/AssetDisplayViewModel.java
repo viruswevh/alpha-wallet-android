@@ -8,6 +8,7 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.alphawallet.app.C;
+import com.alphawallet.app.entity.ConfirmationType;
 import com.alphawallet.app.entity.NetworkInfo;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.tokens.Token;
@@ -19,14 +20,18 @@ import com.alphawallet.app.router.RedeemAssetSelectRouter;
 import com.alphawallet.app.router.TransferTicketRouter;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.OpenseaService;
+import com.alphawallet.app.service.TokensService;
+import com.alphawallet.app.ui.ConfirmationActivity;
 import com.alphawallet.app.ui.RedeemAssetSelectActivity;
 import com.alphawallet.app.ui.SellDetailActivity;
 import com.alphawallet.app.ui.TransferTicketDetailActivity;
 import com.alphawallet.app.ui.widget.entity.TicketRangeParcel;
+import com.alphawallet.token.entity.FunctionDefinition;
 import com.alphawallet.token.entity.SigReturnType;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +59,7 @@ public class AssetDisplayViewModel extends BaseViewModel
     private final MyAddressRouter myAddressRouter;
     private final AssetDefinitionService assetDefinitionService;
     private final OpenseaService openseaService;
+    private final TokensService tokensService;
 
     private Token refreshToken;
 
@@ -73,7 +79,8 @@ public class AssetDisplayViewModel extends BaseViewModel
             FindDefaultNetworkInteract findDefaultNetworkInteract,
             MyAddressRouter myAddressRouter,
             AssetDefinitionService assetDefinitionService,
-            OpenseaService openseaService) {
+            OpenseaService openseaService,
+            TokensService tokensService) {
         this.fetchTokensInteract = fetchTokensInteract;
         this.genericWalletInteract = genericWalletInteract;
         this.findDefaultNetworkInteract = findDefaultNetworkInteract;
@@ -82,6 +89,7 @@ public class AssetDisplayViewModel extends BaseViewModel
         this.myAddressRouter = myAddressRouter;
         this.assetDefinitionService = assetDefinitionService;
         this.openseaService = openseaService;
+        this.tokensService = tokensService;
     }
 
     @Override
@@ -227,5 +235,47 @@ public class AssetDisplayViewModel extends BaseViewModel
         failSig.type = SigReturnType.NO_TOKENSCRIPT;
         failSig.subject = throwable.getMessage();
         sig.postValue(failSig);
+    }
+
+    public Token getCurrency(int chainId)
+    {
+        return tokensService.getToken(chainId, defaultWallet.getValue().address);
+    }
+
+    public String getTransactionBytes(Token token, BigInteger tokenId, FunctionDefinition def)
+    {
+        return assetDefinitionService.generateTransactionPayload(token, tokenId, def);
+    }
+
+    public void confirmTransaction(Context ctx, int networkId, String functionData, String toAddress,
+                                   String contractAddress, String additionalDetails, String functionName, String value)
+    {
+        Intent intent = new Intent(ctx, ConfirmationActivity.class);
+        intent.putExtra(C.EXTRA_TRANSACTION_DATA, functionData);
+        intent.putExtra(C.EXTRA_NETWORKID, networkId);
+        intent.putExtra(C.EXTRA_NETWORK_NAME, findDefaultNetworkInteract.getNetworkName(networkId));
+        intent.putExtra(C.EXTRA_AMOUNT, value);
+        if (toAddress != null) intent.putExtra(C.EXTRA_TO_ADDRESS, toAddress);
+        if (contractAddress != null) intent.putExtra(C.EXTRA_CONTRACT_ADDRESS, contractAddress);
+        intent.putExtra(C.EXTRA_ACTION_NAME, additionalDetails);
+        intent.putExtra(C.EXTRA_FUNCTION_NAME, functionName);
+        intent.putExtra(C.TOKEN_TYPE, ConfirmationType.TOKENSCRIPT.ordinal());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ctx.startActivity(intent);
+    }
+
+    public void confirmNativeTransaction(Context ctx, String toAddress, BigDecimal value, Token nativeEth, String info)
+    {
+        Intent intent = new Intent(ctx, ConfirmationActivity.class);
+        intent.putExtra(C.EXTRA_TO_ADDRESS, toAddress);
+        intent.putExtra(C.EXTRA_AMOUNT, value.toString());
+        intent.putExtra(C.EXTRA_DECIMALS, nativeEth.tokenInfo.decimals);
+        intent.putExtra(C.EXTRA_SYMBOL, nativeEth.getSymbol());
+        intent.putExtra(C.EXTRA_SENDING_TOKENS, false);
+        intent.putExtra(C.EXTRA_ENS_DETAILS, info);
+        intent.putExtra(C.EXTRA_NETWORKID, nativeEth.tokenInfo.chainId);
+        intent.putExtra(C.TOKEN_TYPE, ConfirmationType.ETH.ordinal());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ctx.startActivity(intent);
     }
 }

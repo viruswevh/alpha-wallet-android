@@ -78,6 +78,7 @@ public class WalletViewModel extends BaseViewModel
     private final FetchTransactionsInteract fetchTransactionsInteract;
     private final EthereumNetworkRepositoryType ethereumNetworkRepository;
     private final ChangeTokenEnableInteract changeTokenEnableInteract;
+    private boolean requireListenerUpdate = true;
 
     private final MutableLiveData<Map<String, String>> currentWalletBalance = new MutableLiveData<>();
 
@@ -221,6 +222,8 @@ public class WalletViewModel extends BaseViewModel
 
     private void startBalanceUpdate()
     {
+        if (requireListenerUpdate) assetDefinitionService.startEventListeners();
+        requireListenerUpdate = false;
         fetchFromOpensea(ethereumNetworkRepository.getNetworkByChain(MAINNET_ID));
         updateTokenBalances();
         assetDefinitionService.checkTokenscriptEnabledTokens(tokensService);
@@ -450,6 +453,7 @@ public class WalletViewModel extends BaseViewModel
         if (unknownAddresses == null) unknownAddresses = new ConcurrentLinkedQueue<>();
         if (currentWallet == null)
         {
+            requireListenerUpdate = true;
             disposable = genericWalletInteract
                     .find()
                     .subscribe(this::onDefaultWallet, this::onError);

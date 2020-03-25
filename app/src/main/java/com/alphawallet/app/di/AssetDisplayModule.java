@@ -11,6 +11,7 @@ import com.alphawallet.app.router.RedeemAssetSelectRouter;
 import com.alphawallet.app.router.TransferTicketRouter;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.OpenseaService;
+import com.alphawallet.app.service.TokensService;
 import com.alphawallet.app.viewmodel.AssetDisplayViewModelFactory;
 
 import dagger.Module;
@@ -31,9 +32,11 @@ public class AssetDisplayModule {
             FindDefaultNetworkInteract findDefaultNetworkInteract,
             MyAddressRouter myAddressRouter,
             AssetDefinitionService assetDefinitionService,
-            OpenseaService openseaService) {
+            OpenseaService openseaService,
+            TokensService tokensService) {
         return new AssetDisplayViewModelFactory(
-                fetchTokensInteract, genericWalletInteract, transferTicketRouter, redeemAssetSelectRouter, findDefaultNetworkInteract, myAddressRouter, assetDefinitionService, openseaService);
+                fetchTokensInteract, genericWalletInteract, transferTicketRouter, redeemAssetSelectRouter, findDefaultNetworkInteract,
+                myAddressRouter, assetDefinitionService, openseaService, tokensService);
     }
 
     @Provides

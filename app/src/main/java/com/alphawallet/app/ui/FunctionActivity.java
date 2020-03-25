@@ -519,8 +519,10 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
             isValid = false;
         }
 
+        BigDecimal valCorrected = getCorrectedBalance(value.toString(), 18);
+
         //eg Send 2(*1) ETH(*2) to Alex's Amazing Coffee House(*3) (0xdeadacec0ffee(*4))
-        String extraInfo = String.format(getString(R.string.tokenscript_send_native), functionEffect, token.getSymbol(), actionMethod, to);
+        String extraInfo = String.format(getString(R.string.tokenscript_send_native), valCorrected, token.getSymbol(), actionMethod, to);
 
         //Clear the cache to refresh any resolved values
         viewModel.getAssetDefinitionService().clearCache();

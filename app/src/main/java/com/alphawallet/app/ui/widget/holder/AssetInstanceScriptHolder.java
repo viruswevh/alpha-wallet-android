@@ -20,6 +20,7 @@ import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.ui.TokenFunctionActivity;
 import com.alphawallet.app.ui.widget.OnTokenClickListener;
 import com.alphawallet.app.web3.Web3TokenView;
+import com.alphawallet.app.web3.entity.Address;
 import com.alphawallet.app.web3.entity.PageReadyCallback;
 import com.alphawallet.token.entity.TicketRange;
 
@@ -57,6 +58,8 @@ public class AssetInstanceScriptHolder extends BinderViewHolder<TicketRange> imp
         tokenView.setOnReadyCallback(this);
         this.iconified = iconified;
         handler = new Handler();
+        tokenView.setWalletAddress(new Address(token.getWallet()));
+        tokenView.setChainId(token.tokenInfo.chainId);
 
         tokenView.setLayout(token, iconified);
     }

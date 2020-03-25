@@ -20,6 +20,7 @@ import com.alphawallet.app.entity.FinishReceiver;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.ui.widget.adapter.NonFungibleTokenAdapter;
+import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.AssetDisplayViewModel;
 import com.alphawallet.app.viewmodel.AssetDisplayViewModelFactory;
 import com.alphawallet.app.web3.Web3TokenView;
@@ -28,12 +29,16 @@ import com.alphawallet.app.widget.AWalletAlertDialog;
 import com.alphawallet.app.widget.CertifiedToolbarView;
 import com.alphawallet.app.widget.FunctionButtonBar;
 import com.alphawallet.app.widget.SystemView;
+import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.TSAction;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -248,17 +253,75 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         dialog.show();
     }
 
+    /*
+    private void handleFunction(TSAction action)
+    {
+        if (isClosing) return;
+        if (action.function.tx != null && (action.function.method == null || action.function.method.length() == 0)
+                && (action.function.parameters == null || action.function.parameters.size() == 0))
+        {
+            //no params, this is a native style transaction
+            NativeSend(action);
+        }
+        else
+        {
+            //TODO: try to match the transaction with known token functions and check if this function will pass (insufficient funds or gas etc).
+            String functionData = viewModel.getTransactionBytes(token, tokenId, action.function);
+            //confirm the transaction
+            ContractAddress cAddr = new ContractAddress(action.function, token.tokenInfo.chainId, token.tokenInfo.address); //viewModel.getAssetDefinitionService().getContractAddress(action.function, token);
+
+            if (functionEffect == null)
+            {
+                functionEffect = actionMethod;
+            }
+            else
+            {
+                functionEffect = functionEffect + " " + token.getSymbol() + " to " + actionMethod;
+                //functionEffect = functionEffect + " to " + actionMethod;
+            }
+
+            //function call may include some value
+            String value = "0";
+            if (action.function.tx != null && action.function.tx.args.containsKey("value"))
+            {
+                //this is very specific but 'value' is a specifically handled param
+                value = action.function.tx.args.get("value").value;
+                BigDecimal valCorrected = getCorrectedBalance(value, 18);
+                Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
+                functionEffect = valCorrected.toString() + " " + currency.getSymbol() + " to " + actionMethod;
+            }
+
+            //finished resolving attributes, blank definition cache so definition is re-loaded when next needed
+            viewModel.getAssetDefinitionService().clearCache();
+
+            viewModel.confirmTransaction(this, cAddr.chainId, functionData, null, cAddr.address, actionMethod, functionEffect, value);
+        }
+    }
+     */
+
     @Override
     public void handleTokenScriptFunction(String function, List<BigInteger> selection)
     {
+        //does the function have a view? If it's transaction only then handle here
+        Map<String, TSAction> functions = viewModel.getAssetDefinitionService().getTokenFunctionMap(token.tokenInfo.chainId, token.getAddress());
+        TSAction action = functions.get(function);
+
         //handle TS function
-        Intent intent = new Intent(this, FunctionActivity.class);
-        intent.putExtra(TICKET, token);
-        intent.putExtra(WALLET, viewModel.defaultWallet().getValue());
-        intent.putExtra(C.EXTRA_STATE, function);
-        intent.putExtra(C.EXTRA_TOKEN_ID, token.bigIntListToString(adapter.getSelectedTokenIds(selection), true));
-        intent.setFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-        startActivity(intent);
+        if (action != null && action.view == null && action.function != null)
+        {
+            //go straight to function call
+            handleFunction(action, selection);
+        }
+        else
+        {
+            Intent intent = new Intent(this, FunctionActivity.class);
+            intent.putExtra(TICKET, token);
+            intent.putExtra(WALLET, viewModel.defaultWallet().getValue());
+            intent.putExtra(C.EXTRA_STATE, function);
+            intent.putExtra(C.EXTRA_TOKEN_ID, token.bigIntListToString(adapter.getSelectedTokenIds(selection), true));
+            intent.setFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+            startActivity(intent);
+        }
     }
 
     @Override
@@ -314,5 +377,118 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         adapter = new NonFungibleTokenAdapter(functionBar, token, viewModel.getAssetDefinitionService(), viewModel.getOpenseaService());
         functionBar.setupFunctions(this, viewModel.getAssetDefinitionService(), token, adapter);
         list.setAdapter(adapter);
+    }
+
+
+
+    private void handleFunction(TSAction action, List<BigInteger> selection)
+    {
+        String functionEffect = action.function.method;
+        if (action.function.tx != null && (action.function.method == null || action.function.method.length() == 0)
+                && (action.function.parameters == null || action.function.parameters.size() == 0))
+        {
+            //no params, this is a native style transaction
+            NativeSend(action);
+        }
+        else
+        {
+            //what's selected?
+            BigInteger tokenId = selection.get(0);
+            ContractAddress cAddr = new ContractAddress(action.function, token.tokenInfo.chainId, token.tokenInfo.address); //viewModel.getAssetDefinitionService().getContractAddress(action.function, token);
+            String functionData = viewModel.getTransactionBytes(token, tokenId, action.function);
+            //function call may include some value
+            String value = "0";
+            if (action.function.tx != null && action.function.tx.args.containsKey("value"))
+            {
+                //this is very specific but 'value' is a specifically handled param
+                value = action.function.tx.args.get("value").value;
+                BigDecimal valCorrected = getCorrectedBalance(value, 18);
+                Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
+                functionEffect = valCorrected.toString() + " " + currency.getSymbol() + " to " + action.function.method;
+            }
+
+            //finished resolving attributes, blank definition cache so definition is re-loaded when next needed
+            viewModel.getAssetDefinitionService().clearCache();
+
+            viewModel.confirmTransaction(this, cAddr.chainId, functionData, null, cAddr.address, action.function.method, functionEffect, value);
+        }
+    }
+
+    private void NativeSend(TSAction action)
+    {
+        boolean isValid = true;
+
+        //calculate native amount
+        BigDecimal value = new BigDecimal(action.function.tx.args.get("value").value);
+        //this is a native send, so check the native currency
+        Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
+
+        if (currency.balance.subtract(value).compareTo(BigDecimal.ZERO) < 0)
+        {
+            //flash up dialog box insufficent funds
+            errorInsufficientFunds(currency);
+            isValid = false;
+        }
+
+        //is 'to' overridden?
+        String to = null;
+        if (action.function.tx.args.get("to") != null)
+        {
+            to = action.function.tx.args.get("to").value;
+        }
+        else if (action.function.contract.addresses.get(token.tokenInfo.chainId) != null)
+        {
+            to = action.function.contract.addresses.get(token.tokenInfo.chainId).get(0);
+        }
+
+        if (to == null || !Utils.isAddressValid(to))
+        {
+            //TODO: Flash button
+            return;
+        }
+
+        BigDecimal valCorrected = getCorrectedBalance(value.toString(), 18);
+
+        //eg Send 2(*1) ETH(*2) to Alex's Amazing Coffee House(*3) (0xdeadacec0ffee(*4))
+        String extraInfo = String.format(getString(R.string.tokenscript_send_native), valCorrected, token.getSymbol(), action.function.method, to);
+
+        //Clear the cache to refresh any resolved values
+        viewModel.getAssetDefinitionService().clearCache();
+
+        if (isValid) {
+            viewModel.confirmNativeTransaction(this, to, value, token, extraInfo);
+        }
+    }
+
+    public BigDecimal getCorrectedBalance(String value, int scale)
+    {
+        BigDecimal val = BigDecimal.ZERO;
+        try
+        {
+            val = new BigDecimal(value);
+            BigDecimal decimalDivisor = new BigDecimal(Math.pow(10, scale));
+            val = val.divide(decimalDivisor);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+
+        return val.setScale(scale, RoundingMode.HALF_DOWN).stripTrailingZeros();
+    }
+
+    private void errorInsufficientFunds(Token currency)
+    {
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+
+        dialog = new AWalletAlertDialog(this);
+        dialog.setIcon(AWalletAlertDialog.ERROR);
+        dialog.setTitle(R.string.error_insufficient_funds);
+        dialog.setMessage(getString(R.string.current_funds, currency.getCorrectedBalance(currency.tokenInfo.decimals), currency.getSymbol()));
+        dialog.setButtonText(R.string.button_ok);
+        dialog.setButtonListener(v -> dialog.dismiss());
+        dialog.show();
     }
 }

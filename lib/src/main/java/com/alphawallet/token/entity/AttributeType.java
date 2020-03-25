@@ -245,6 +245,30 @@ public class AttributeType {
         }
     }
 
+    //Sometimes value needs to be processed from the raw input.
+    //Currently only time
+    public BigInteger processValue(BigInteger val) throws UnsupportedEncodingException, ParseException
+    {
+        switch (syntax)
+        {
+            case GeneralizedTime:
+                try
+                {
+                    DateTime dt = DateTimeFactory.getDateTime(toString(val));
+                    val = BigInteger.valueOf(dt.toEpoch());
+                }
+                catch (ParseException|UnsupportedEncodingException p)
+                {
+                    p.printStackTrace();
+                }
+                break;
+            default:
+                break;
+        }
+
+        return val;
+    }
+
     private String checkAlphaNum(String data)
     {
         for (char ch : data.toCharArray())

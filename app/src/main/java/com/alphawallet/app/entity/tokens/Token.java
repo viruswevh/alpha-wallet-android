@@ -160,6 +160,23 @@ public class Token implements Parcelable, Comparable<Token>
     public Asset getAssetForToken(String tokenId) {
         return null;
     }
+    public List<BigInteger> getUniqueTokenIds()
+    {
+        List<BigInteger> uniqueIds = new ArrayList<>();
+        if (isNonFungible())
+        {
+            for (BigInteger id : getArrayBalance())
+            {
+                if (!uniqueIds.contains(id)) uniqueIds.add(id);
+            }
+        }
+        else
+        {
+            uniqueIds.add(BigInteger.ZERO);
+        }
+
+        return uniqueIds;
+    }
 
     public void addAssetToTokenBalanceAssets(Asset asset) {
         //only for ERC721, see override in ERC721Token

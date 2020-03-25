@@ -805,8 +805,9 @@ public class TokenDefinition {
             {
                 Element element = (Element)n;
                 String name = element.getAttribute("name");
-                String type = element.getAttribute("ethereum-type");
-                module.sequence.put(name, type);
+                String type = element.getAttribute("ethereum:type");
+                String indexed = element.getAttribute("ethereum:indexed");
+                module.addSequenceElement(name, type, indexed);
             }
         }
 

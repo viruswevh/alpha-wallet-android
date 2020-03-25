@@ -21,6 +21,8 @@ public class TicketRangeElement
 
         if (timeAttr != null)
         {
+            //time in token is generalised time
+
             time = timeAttr.value.longValue();
         }
         else

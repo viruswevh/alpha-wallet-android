@@ -589,8 +589,8 @@ public abstract class TokenscriptFunction
     public Observable<TokenScriptResult.Attribute> fetchAttrResult(String walletAddress, String attribute, BigInteger tokenId, ContractAddress cAddr, TokenDefinition td, AttributeInterface attrIf, long transactionUpdate)
     {
         AttributeType attr = td.attributeTypes.get(attribute);
-        if (attr == null || isAttrIncomplete(attr)) return Observable.fromCallable(() -> new TokenScriptResult.Attribute("bd", "bd", BigInteger.ZERO, ""));
-        if (attr.function == null)  // static attribute from tokenId (eg city mapping from tokenId)
+        if (attr == null || attr.event != null || isAttrIncomplete(attr)) return Observable.fromCallable(() -> new TokenScriptResult.Attribute("bd", "bd", BigInteger.ZERO, ""));
+        else if (attr.function == null)  // static attribute from tokenId (eg city mapping from tokenId)
         {
             return staticAttribute(attr, tokenId);
         }
