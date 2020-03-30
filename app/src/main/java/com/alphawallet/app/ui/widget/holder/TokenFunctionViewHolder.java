@@ -66,9 +66,9 @@ public class TokenFunctionViewHolder extends BinderViewHolder<String> implements
         try
         {
             reloaded = false;
-            String injectedView = tokenView.injectWeb3TokenInit(getContext(), view, "");
+            String injectedView = tokenView.injectWeb3TokenInit(getContext(), view, "", "1");
             String style = assetDefinitionService.getTokenView(token.tokenInfo.chainId, token.getAddress(), "style");
-            injectedView = tokenView.injectStyleData(injectedView, style);
+            injectedView = tokenView.injectStyleAndWrapper(injectedView, style, "1");
 
             String base64 = Base64.encodeToString(injectedView.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
             tokenView.loadData(base64, "text/html; charset=utf-8", "base64");

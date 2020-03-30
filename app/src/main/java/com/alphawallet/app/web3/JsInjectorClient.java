@@ -117,12 +117,16 @@ public class JsInjectorClient {
         return injectJS(html, js);
     }
 
-    String injectWeb3TokenInit(Context ctx, String view, String tokenContent)
+    String injectWeb3TokenInit(Context ctx, String view, String tokenContent, String tokenId)
     {
         String initSrc = loadFile(ctx, R.raw.init_token);
-        initSrc = String.format(initSrc, tokenContent, walletAddress, EthereumNetworkRepository.getNodeURLByNetworkId(chainId), chainId);
+        //put the view in here
+        String tokenIdWrapperName = "token-card-" + tokenId;
+        initSrc = String.format(initSrc, tokenContent, walletAddress, EthereumNetworkRepository.getNodeURLByNetworkId(chainId), chainId, tokenIdWrapperName);
         //now insert this source into the view
-        return injectJSembed(view, initSrc);
+        String wrapper = "<div id=\"token-card-" + tokenId + "\" class=\"token-card\">";
+        initSrc = wrapper + "<script>\n" + initSrc + "</script>\n";
+        return injectJS(view, initSrc);
     }
 
     String injectJSAtEnd(String view, String newCode)
@@ -134,12 +138,6 @@ public class JsInjectorClient {
             return beforeTag + newCode + afterTab;
         }
         return view;
-    }
-
-    String injectJSembed(String view, String initSrc)
-    {
-        initSrc = "<script>\n" + initSrc + "</script>\n";
-        return injectJS(view, initSrc);
     }
 
     String injectJS(String html, String js) {
@@ -201,11 +199,16 @@ public class JsInjectorClient {
         return String.format(initSrc, address, rpcUrl, chainId);
     }
 
-    String injectStyle(String view, String style)
+    String injectStyleAndWrap(String view, String style, String tokenId)
     {
+        if (style == null) style = "";
         String injectHeader = "<head><meta name=\"viewport\" content=\"width=device-width, user-scalable=false\" /></head>";
-        style = "<style type=\"text/css\">\n" + style + "</style><body>\n";
-        return injectHeader + style + view + "</body>";
+        //String injectHeader = "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no\" /></head>";
+        style = "<style type=\"text/css\">\n" + style + ".token-card {\n" +
+                "padding: 0pt;\n" +
+                "margin: 0pt;\n" +
+                "}</style><body>\n";
+        return injectHeader + style + view + "</div></body>";
     }
 
     private static String loadFile(Context context, @RawRes int rawRes) {

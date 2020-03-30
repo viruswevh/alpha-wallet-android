@@ -2,6 +2,7 @@ package com.alphawallet.token.entity;
 
 import com.alphawallet.token.tools.TokenDefinition;
 
+import java.math.BigInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -10,11 +11,14 @@ import java.util.regex.Pattern;
  */
 public class EventDefinition
 {
+    public ContractInfo originContract;
+    public String attributeId; //TransactionResult: method
     public String eventName;
     public Module eventModule;
     public String filter;
     public String select;
-    public long readBlock;
+    public BigInteger readBlock;
+    public boolean hasNewEvent = false;
 
     public String getFilterTopicValue()
     {

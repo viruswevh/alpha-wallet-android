@@ -41,6 +41,7 @@ public class AttributeType {
     {
         definition = def;
         id = attr.getAttribute("id");
+        name = id; //set name to id if not specified
         as = As.Unsigned; //default value
         try {
             switch (attr.getAttribute("syntax")) { // We don't validate syntax here; schema does it.
@@ -126,6 +127,7 @@ public class AttributeType {
                         if (resolve.hasAttribute("event"))
                         {
                             event = definition.parseEvent(resolve, syntax);
+                            event.attributeId = id;
                         }
                         else if (resolve.hasAttribute("function"))
                         {

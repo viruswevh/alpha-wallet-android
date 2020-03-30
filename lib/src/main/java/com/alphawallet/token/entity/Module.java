@@ -12,13 +12,11 @@ import java.util.Map;
  */
 public class Module
 {
-    public final ContractInfo originToken;
     public final ContractInfo contractInfo;
     public List<SequenceElement> sequence = new ArrayList<>();
 
-    public Module(ContractInfo origin, ContractInfo info)
+    public Module(ContractInfo info)
     {
-        originToken = origin;
         contractInfo = info;
     }
 

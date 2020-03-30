@@ -88,7 +88,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     private Handler handler;
     private HomeReceiver homeReceiver;
     private AWalletConfirmationDialog cDialog;
-    private String buildVersion;
+    private String buildVersion = null;
     private final Fragment settingsFragment;
     private final Fragment dappBrowserFragment;
     private final Fragment transactionsFragment;
@@ -772,7 +772,14 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             case RC_ASSET_EXTERNAL_WRITE_PERM:
                 if (hasPermission(permissions, grantResults))
                 {
-                    viewModel.downloadAndInstall(buildVersion, this);
+                    if (buildVersion != null)
+                    {
+                        viewModel.downloadAndInstall(buildVersion, this);
+                    }
+                    else
+                    {
+                        ((NewSettingsFragment)walletFragment).refresh();
+                    }
                 }
                 else
                 {

@@ -1,7 +1,6 @@
 package com.alphawallet.app.ui;
 
 import android.arch.lifecycle.ViewModelProviders;
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.Nullable;
@@ -14,29 +13,24 @@ import android.view.View;
 import android.webkit.WebView;
 import android.widget.ProgressBar;
 
-import com.alphawallet.app.C;
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.FinishReceiver;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.ui.widget.adapter.NonFungibleTokenAdapter;
-import com.alphawallet.app.util.Utils;
-import com.alphawallet.app.viewmodel.AssetDisplayViewModel;
-import com.alphawallet.app.viewmodel.AssetDisplayViewModelFactory;
+import com.alphawallet.app.viewmodel.TokenFunctionViewModel;
+import com.alphawallet.app.viewmodel.TokenFunctionViewModelFactory;
 import com.alphawallet.app.web3.Web3TokenView;
 import com.alphawallet.app.web3.entity.PageReadyCallback;
 import com.alphawallet.app.widget.AWalletAlertDialog;
 import com.alphawallet.app.widget.CertifiedToolbarView;
 import com.alphawallet.app.widget.FunctionButtonBar;
 import com.alphawallet.app.widget.SystemView;
-import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.TSAction;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +39,6 @@ import javax.inject.Inject;
 import dagger.android.AndroidInjection;
 
 import static com.alphawallet.app.C.Key.TICKET;
-import static com.alphawallet.app.C.Key.WALLET;
 
 /**
  * Created by James on 22/01/2018.
@@ -73,8 +66,9 @@ import static com.alphawallet.app.C.Key.WALLET;
 public class AssetDisplayActivity extends BaseActivity implements StandardFunctionInterface, PageReadyCallback, Runnable
 {
     @Inject
-    protected AssetDisplayViewModelFactory assetDisplayViewModelFactory;
-    private AssetDisplayViewModel viewModel;
+    protected TokenFunctionViewModelFactory tokenFunctionViewModelFactory;
+    private TokenFunctionViewModel viewModel;
+
     private SystemView systemView;
     private ProgressBar progressView;
     private RecyclerView list;
@@ -116,12 +110,14 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         list = findViewById(R.id.listTickets);
         toolbarView = findViewById(R.id.toolbar);
 
-        viewModel = ViewModelProviders.of(this, assetDisplayViewModelFactory)
-                .get(AssetDisplayViewModel.class);
+        viewModel = ViewModelProviders.of(this, tokenFunctionViewModelFactory)
+                .get(TokenFunctionViewModel.class);
 
         viewModel.pushToast().observe(this, this::displayToast);
-        viewModel.ticket().observe(this, this::onTokenUpdate);
+        viewModel.tokenUpdate().observe(this, this::onTokenUpdate);
         viewModel.sig().observe(this, this::onSigData);
+        viewModel.insufficientFunds().observe(this, this::errorInsufficientFunds);
+        viewModel.invalidAddress().observe(this, this::errorInvalidAddress);
 
         functionBar = findViewById(R.id.layoutButtons);
 
@@ -132,10 +128,9 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         findViewById(R.id.certificate_spinner).setVisibility(View.VISIBLE);
         viewModel.checkTokenScriptValidity(token);
 
-        token.iconifiedWebviewHeight = 0;
-        token.nonIconifiedWebviewHeight = 0;
         iconifiedCheck = true;
-        if (token.getArrayBalance().size() > 0 && viewModel.getAssetDefinitionService().hasDefinition(token.tokenInfo.chainId, token.tokenInfo.address))
+        if (token.getArrayBalance().size() > 0 && viewModel.getAssetDefinitionService().hasDefinition(token.tokenInfo.chainId, token.tokenInfo.address)
+                && token.iconifiedWebviewHeight == 0)
         {
             initWebViewCheck(iconifiedCheck);
             handler.postDelayed(this, 1500);
@@ -190,13 +185,10 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
 
     private void onTokenUpdate(Token t)
     {
-        if (adapter != null && token.checkBalanceChange(t))
+        if (adapter != null)
         {
             token = t;
             adapter.setToken(token);
-            RecyclerView list = findViewById(R.id.listTickets);
-            list.setAdapter(null);
-            list.setAdapter(adapter);
         }
     }
 
@@ -232,7 +224,7 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
     @Override
     public void sellTicketRouter(List<BigInteger> selection)
     {
-        viewModel.sellTicketRouter(this, token, token.bigIntListToString(selection, false));
+        viewModel.sellTicketRouter(this, token, selection);
     }
 
     @Override
@@ -253,52 +245,6 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         dialog.show();
     }
 
-    /*
-    private void handleFunction(TSAction action)
-    {
-        if (isClosing) return;
-        if (action.function.tx != null && (action.function.method == null || action.function.method.length() == 0)
-                && (action.function.parameters == null || action.function.parameters.size() == 0))
-        {
-            //no params, this is a native style transaction
-            NativeSend(action);
-        }
-        else
-        {
-            //TODO: try to match the transaction with known token functions and check if this function will pass (insufficient funds or gas etc).
-            String functionData = viewModel.getTransactionBytes(token, tokenId, action.function);
-            //confirm the transaction
-            ContractAddress cAddr = new ContractAddress(action.function, token.tokenInfo.chainId, token.tokenInfo.address); //viewModel.getAssetDefinitionService().getContractAddress(action.function, token);
-
-            if (functionEffect == null)
-            {
-                functionEffect = actionMethod;
-            }
-            else
-            {
-                functionEffect = functionEffect + " " + token.getSymbol() + " to " + actionMethod;
-                //functionEffect = functionEffect + " to " + actionMethod;
-            }
-
-            //function call may include some value
-            String value = "0";
-            if (action.function.tx != null && action.function.tx.args.containsKey("value"))
-            {
-                //this is very specific but 'value' is a specifically handled param
-                value = action.function.tx.args.get("value").value;
-                BigDecimal valCorrected = getCorrectedBalance(value, 18);
-                Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
-                functionEffect = valCorrected.toString() + " " + currency.getSymbol() + " to " + actionMethod;
-            }
-
-            //finished resolving attributes, blank definition cache so definition is re-loaded when next needed
-            viewModel.getAssetDefinitionService().clearCache();
-
-            viewModel.confirmTransaction(this, cAddr.chainId, functionData, null, cAddr.address, actionMethod, functionEffect, value);
-        }
-    }
-     */
-
     @Override
     public void handleTokenScriptFunction(String function, List<BigInteger> selection)
     {
@@ -310,17 +256,11 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         if (action != null && action.view == null && action.function != null)
         {
             //go straight to function call
-            handleFunction(action, selection);
+            viewModel.handleFunction(action, selection.get(0), token, this);
         }
         else
         {
-            Intent intent = new Intent(this, FunctionActivity.class);
-            intent.putExtra(TICKET, token);
-            intent.putExtra(WALLET, viewModel.defaultWallet().getValue());
-            intent.putExtra(C.EXTRA_STATE, function);
-            intent.putExtra(C.EXTRA_TOKEN_ID, token.bigIntListToString(adapter.getSelectedTokenIds(selection), true));
-            intent.setFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-            startActivity(intent);
+            viewModel.showFunction(this, token, function, selection);
         }
     }
 
@@ -339,6 +279,7 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
                 if (iconifiedCheck)token.iconifiedWebviewHeight = bottom - top;
                 else token.nonIconifiedWebviewHeight = bottom - top;
                 checkVal++;
+                viewModel.setTokenViewDimensions(token);
             }
 
             if (checkVal == 3) addRunCall(0); //received the third webview render update - this is always the final size we want, but sometimes there's only 1 or 2 updates
@@ -379,104 +320,6 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         list.setAdapter(adapter);
     }
 
-
-
-    private void handleFunction(TSAction action, List<BigInteger> selection)
-    {
-        String functionEffect = action.function.method;
-        if (action.function.tx != null && (action.function.method == null || action.function.method.length() == 0)
-                && (action.function.parameters == null || action.function.parameters.size() == 0))
-        {
-            //no params, this is a native style transaction
-            NativeSend(action);
-        }
-        else
-        {
-            //what's selected?
-            BigInteger tokenId = selection.get(0);
-            ContractAddress cAddr = new ContractAddress(action.function, token.tokenInfo.chainId, token.tokenInfo.address); //viewModel.getAssetDefinitionService().getContractAddress(action.function, token);
-            String functionData = viewModel.getTransactionBytes(token, tokenId, action.function);
-            //function call may include some value
-            String value = "0";
-            if (action.function.tx != null && action.function.tx.args.containsKey("value"))
-            {
-                //this is very specific but 'value' is a specifically handled param
-                value = action.function.tx.args.get("value").value;
-                BigDecimal valCorrected = getCorrectedBalance(value, 18);
-                Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
-                functionEffect = valCorrected.toString() + " " + currency.getSymbol() + " to " + action.function.method;
-            }
-
-            //finished resolving attributes, blank definition cache so definition is re-loaded when next needed
-            viewModel.getAssetDefinitionService().clearCache();
-
-            viewModel.confirmTransaction(this, cAddr.chainId, functionData, null, cAddr.address, action.function.method, functionEffect, value);
-        }
-    }
-
-    private void NativeSend(TSAction action)
-    {
-        boolean isValid = true;
-
-        //calculate native amount
-        BigDecimal value = new BigDecimal(action.function.tx.args.get("value").value);
-        //this is a native send, so check the native currency
-        Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
-
-        if (currency.balance.subtract(value).compareTo(BigDecimal.ZERO) < 0)
-        {
-            //flash up dialog box insufficent funds
-            errorInsufficientFunds(currency);
-            isValid = false;
-        }
-
-        //is 'to' overridden?
-        String to = null;
-        if (action.function.tx.args.get("to") != null)
-        {
-            to = action.function.tx.args.get("to").value;
-        }
-        else if (action.function.contract.addresses.get(token.tokenInfo.chainId) != null)
-        {
-            to = action.function.contract.addresses.get(token.tokenInfo.chainId).get(0);
-        }
-
-        if (to == null || !Utils.isAddressValid(to))
-        {
-            //TODO: Flash button
-            return;
-        }
-
-        BigDecimal valCorrected = getCorrectedBalance(value.toString(), 18);
-
-        //eg Send 2(*1) ETH(*2) to Alex's Amazing Coffee House(*3) (0xdeadacec0ffee(*4))
-        String extraInfo = String.format(getString(R.string.tokenscript_send_native), valCorrected, token.getSymbol(), action.function.method, to);
-
-        //Clear the cache to refresh any resolved values
-        viewModel.getAssetDefinitionService().clearCache();
-
-        if (isValid) {
-            viewModel.confirmNativeTransaction(this, to, value, token, extraInfo);
-        }
-    }
-
-    public BigDecimal getCorrectedBalance(String value, int scale)
-    {
-        BigDecimal val = BigDecimal.ZERO;
-        try
-        {
-            val = new BigDecimal(value);
-            BigDecimal decimalDivisor = new BigDecimal(Math.pow(10, scale));
-            val = val.divide(decimalDivisor);
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-        }
-
-        return val.setScale(scale, RoundingMode.HALF_DOWN).stripTrailingZeros();
-    }
-
     private void errorInsufficientFunds(Token currency)
     {
         if (dialog != null && dialog.isShowing()) {
@@ -487,6 +330,20 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         dialog.setIcon(AWalletAlertDialog.ERROR);
         dialog.setTitle(R.string.error_insufficient_funds);
         dialog.setMessage(getString(R.string.current_funds, currency.getCorrectedBalance(currency.tokenInfo.decimals), currency.getSymbol()));
+        dialog.setButtonText(R.string.button_ok);
+        dialog.setButtonListener(v -> dialog.dismiss());
+        dialog.show();
+    }
+
+    private void errorInvalidAddress(String address)
+    {
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+        dialog = new AWalletAlertDialog(this);
+        dialog.setIcon(AWalletAlertDialog.ERROR);
+        dialog.setTitle(R.string.error_invalid_address);
+        dialog.setMessage(getString(R.string.invalid_address_explain, address));
         dialog.setButtonText(R.string.button_ok);
         dialog.setButtonListener(v -> dialog.dismiss());
         dialog.show();

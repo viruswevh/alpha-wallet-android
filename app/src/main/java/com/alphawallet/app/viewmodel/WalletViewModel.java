@@ -10,6 +10,7 @@ import android.util.Log;
 import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.interact.ChangeTokenEnableInteract;
 import com.alphawallet.app.repository.EthereumNetworkRepository;
+import com.alphawallet.app.ui.HomeActivity;
 import com.crashlytics.android.Crashlytics;
 import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.entity.ContractResult;
@@ -222,8 +223,9 @@ public class WalletViewModel extends BaseViewModel
 
     private void startBalanceUpdate()
     {
-        if (requireListenerUpdate) assetDefinitionService.startEventListeners();
-        requireListenerUpdate = false;
+        //TODO: restart event listener when wallet is changed
+        //if (requireListenerUpdate) assetDefinitionService.startEventListeners();
+        //requireListenerUpdate = false;
         fetchFromOpensea(ethereumNetworkRepository.getNetworkByChain(MAINNET_ID));
         updateTokenBalances();
         assetDefinitionService.checkTokenscriptEnabledTokens(tokensService);

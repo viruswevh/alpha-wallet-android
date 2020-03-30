@@ -216,9 +216,9 @@ public class Web3TokenView extends WebView
         assetHolder = holder;
     }
 
-    public String injectWeb3TokenInit(Context ctx, String view, String tokenContent)
+    public String injectWeb3TokenInit(Context ctx, String view, String tokenContent, String tokenId)
     {
-        return jsInjectorClient.injectWeb3TokenInit(ctx, view, tokenContent);
+        return jsInjectorClient.injectWeb3TokenInit(ctx, view, tokenContent, tokenId);
     }
 
     public String injectJS(String view, String buildToken)
@@ -231,9 +231,9 @@ public class Web3TokenView extends WebView
         return jsInjectorClient.injectJSAtEnd(view, JSCode);
     }
 
-    public String injectStyleData(String viewData, String style)
+    public String injectStyleAndWrapper(String viewData, String style, String tokenId)
     {
-        return jsInjectorClient.injectStyle(viewData, style);
+        return jsInjectorClient.injectStyleAndWrap(viewData, style, tokenId);
     }
 
     public void setLayout(Token token, boolean iconified)

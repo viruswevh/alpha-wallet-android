@@ -798,7 +798,7 @@ public class TokenDefinition {
 
     private Module handleElementSequence(Element sequence, ContractInfo info)
     {
-        Module module = new Module(contracts.get(holdingToken), info);
+        Module module = new Module(info);
         for (Node n = sequence.getFirstChild(); n != null; n = n.getNextSibling())
         {
             if (n.getNodeType() == ELEMENT_NODE)
@@ -1028,15 +1028,15 @@ public class TokenDefinition {
      */
     public String getCardData(String tag)
     {
+        String view = null;
         Map<String, String> appearanceSet = attributeSets.get("cards");
         if (appearanceSet != null)
         {
-            return appearanceSet.get(tag);
+            view = appearanceSet.get(tag);
+            if (view == null && tag.equals("item-view")) view = getCardData("view-iconified"); //deal with legacy views
         }
-        else
-        {
-            return "";
-        }
+
+        return view != null ? view : "";
     }
 
     public Map<String, TSAction> getActions()

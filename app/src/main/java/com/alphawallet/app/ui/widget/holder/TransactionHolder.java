@@ -19,6 +19,7 @@ import com.alphawallet.app.entity.Transaction;
 import com.alphawallet.app.entity.TransactionLookup;
 import com.alphawallet.app.entity.TransactionMeta;
 import com.alphawallet.app.entity.TransactionOperation;
+import com.alphawallet.app.repository.EthereumNetworkBase;
 import com.alphawallet.app.util.LocaleUtils;
 import com.alphawallet.app.util.Utils;
 
@@ -89,6 +90,12 @@ public class TransactionHolder extends BinderViewHolder<TransactionMeta> impleme
         defaultAddress = addition.getString(DEFAULT_ADDRESS_ADDITIONAL);
         supplimental.setText("");
 
+        if (data.eventDisplay != null)
+        {
+            displayEvent(data);
+            return;
+        }
+
         //fetch data from database
         String hash = data.hash;
         transaction = transactionsInteract.fetchCached(defaultAddress, hash);
@@ -145,6 +152,27 @@ public class TransactionHolder extends BinderViewHolder<TransactionMeta> impleme
         {
             fillERC20(txSuccess, transaction);
         }
+    }
+
+    private void displayEvent(TransactionMeta data)
+    {
+        if (chainName != null)
+        {
+            Utils.setChainColour(chainName, data.chainId);
+            chainName.setText(tokensService.getShortNetworkName(data.chainId));
+            chainName.setVisibility(View.VISIBLE);
+        }
+
+        //now display eventtext
+        typeIcon.setImageResource(R.drawable.ic_ethereum);
+        typeIcon.setVisibility(View.VISIBLE);
+        //show event text and time
+        type.setText("Event");
+        address.setText(data.eventDisplay);
+        value.setText("");
+        supplimental.setText("");
+        pendingSpinner.setVisibility(View.GONE);
+        if (transactionBackground != null) transactionBackground.setBackgroundResource(R.color.white);
     }
 
     private void setDate()

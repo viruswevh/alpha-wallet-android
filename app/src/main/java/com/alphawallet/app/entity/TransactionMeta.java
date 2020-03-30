@@ -16,11 +16,14 @@ public class TransactionMeta
     public final String hash;
     public final long timeStamp;
     public final boolean isPending;
+    public String eventDisplay;
+    public int chainId;
 
     public TransactionMeta(String hash, long timeStamp, boolean pending)
     {
         this.hash = hash;
         this.timeStamp = timeStamp;
         this.isPending = pending;
+        this.eventDisplay = null;
     }
 }

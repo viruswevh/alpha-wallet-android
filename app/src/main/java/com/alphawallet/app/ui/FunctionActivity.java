@@ -20,10 +20,10 @@ import com.alphawallet.app.entity.SignAuthenticationCallback;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokenscript.TokenScriptRenderCallback;
+import com.alphawallet.app.entity.tokenscript.TokenscriptFunction;
 import com.alphawallet.app.entity.tokenscript.WebCompletionCallback;
 import com.alphawallet.app.util.BalanceUtils;
 import com.alphawallet.app.util.KeyboardUtils;
-import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.TokenFunctionViewModel;
 import com.alphawallet.app.viewmodel.TokenFunctionViewModelFactory;
 import com.alphawallet.app.web3.OnSignPersonalMessageListener;
@@ -39,7 +39,6 @@ import com.alphawallet.app.widget.SignMessageDialog;
 import com.alphawallet.app.widget.SignTransactionDialog;
 import com.alphawallet.app.widget.SystemView;
 import com.alphawallet.token.entity.AttributeType;
-import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.FunctionDefinition;
 import com.alphawallet.token.entity.MethodArg;
 import com.alphawallet.token.entity.TSAction;
@@ -53,10 +52,10 @@ import org.web3j.crypto.Sign;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.SignatureException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +91,7 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
     private SignMessageDialog dialog;
     private String functionEffect;
     private Map<String, String> args = new HashMap<>();
+    private Map<String, Boolean> resolvedUserArgs = new HashMap<>();
     private StringBuilder attrs;
     private AWalletAlertDialog alertDialog;
     private Message<String> messageToSign;
@@ -99,6 +99,7 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
     private Handler handler;
     private boolean reloaded;
     private boolean isClosing;
+    private int userInputCheckCount;
 
     private void initViews() {
         token = getIntent().getParcelableExtra(TICKET);
@@ -136,9 +137,9 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
             Map<String, TSAction> functions = viewModel.getAssetDefinitionService().getTokenFunctionMap(token.tokenInfo.chainId, token.getAddress());
             TSAction action = functions.get(actionMethod);
             String magicValues = viewModel.getAssetDefinitionService().getMagicValuesForInjection(token.tokenInfo.chainId);
-            String injectedView = tokenView.injectWeb3TokenInit(this, action.view, tokenAttrs);
+            String injectedView = tokenView.injectWeb3TokenInit(this, action.view, tokenAttrs, tokenId.toString(10));
             injectedView = tokenView.injectJSAtEnd(injectedView, magicValues);
-            if (action.style != null) injectedView = tokenView.injectStyleData(injectedView, action.style);
+            injectedView = tokenView.injectStyleAndWrapper(injectedView, action.style, tokenId.toString(10));
 
             String base64 = Base64.encodeToString(injectedView.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
             tokenView.loadData(base64, "text/html; charset=utf-8", "base64");
@@ -162,11 +163,15 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
             e.printStackTrace();
         }
 
-        viewModel.getAssetDefinitionService().resolveAttrs(token, tokenIds)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this::onAttr, this::onError, () -> displayFunction(attrs.toString()))
-                .isDisposed();
+        Map<String, TSAction> functions = viewModel.getAssetDefinitionService().getTokenFunctionMap(token.tokenInfo.chainId, token.getAddress());
+        TSAction action = functions.get(actionMethod);
+        List<AttributeType> localAttrs = action.attributeTypes != null ? new ArrayList<>(action.attributeTypes.values()) : null;
+
+        viewModel.getAssetDefinitionService().resolveAttrs(token, tokenIds, localAttrs)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(this::onAttr, this::onError, () -> displayFunction(attrs.toString()))
+                    .isDisposed();
     }
 
     private void addMultipleTokenIds(StringBuilder sb)
@@ -231,6 +236,7 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
         systemView = findViewById(R.id.system_view);
         ProgressView progressView = findViewById(R.id.progress_view);
         systemView.hide();
+        viewModel.invalidAddress().observe(this, this::errorInvalidAddress);
         progressView.hide();
         isClosing = false;
 
@@ -265,7 +271,7 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
         return super.onOptionsItemSelected(item);
     }
 
-    private void completeTokenscriptFunction(String function)
+    private void completeTokenScriptFunction(String function)
     {
         Map<String, TSAction> functions = viewModel.getAssetDefinitionService().getTokenFunctionMap(token.tokenInfo.chainId, token.getAddress());
         TSAction action = functions.get(function);
@@ -278,11 +284,18 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
             resolved = checkFunctionArgs(action, resolved);
             resolveTokenIds(action);
 
-            if (resolved)
+            if (resolved && userInputCheckCount == 0)
             {
-                handleFunction(action);
+                viewModel.handleFunction(action, tokenId, token, this);
+                return;
+            }
+            else if (!resolved && userInputCheckCount > 0)
+            {
+                return;
             }
         }
+
+        tokenScriptError(function);
     }
 
     private void resolveTokenIds(TSAction action)
@@ -346,30 +359,27 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
         String valueFromInput = args.get(e.ref);
         if (valueFromInput == null)
         {
+            userInputCheckCount++;
             //fetch mapping
             args.put(e.ref, "__searching"); // indicate search TokenScript rendered page for user input
             getInput(e.ref);
             resolved = false;
         }
-        else if (valueFromInput.equals("__searching")) //second pass through, still searching - error.
+        else if (!valueFromInput.equals("__searching") && !resolvedUserArgs.containsKey(e.ref))
         {
-            //display error, basic script error reporting
-            String attrDetails = e.ref + " (" + attr.name + ")";
-            String details = getString(R.string.tokenscript_element_not_present, attrDetails);
-            tokenscriptError(details);
-            resolved = false;
-        }
-        else
-        {
+            resolvedUserArgs.put(e.ref, true);
+            userInputCheckCount--;
             try
             {
+                byte[] inputBytes;
                 switch (attr.as)
                 {
                     //UTF8, Unsigned, Signed, Mapping, Boolean, UnsignedInput, TokenId
                     case Unsigned:
                     case Signed:
                     case UnsignedInput:
-                        BigDecimal unsignedValue = new BigDecimal(valueFromInput);
+                        inputBytes = TokenscriptFunction.convertArgToBytes(valueFromInput);
+                        BigInteger unsignedValue = new BigInteger(inputBytes);
                         args.put(e.ref, unsignedValue.toString());
                         e.value = unsignedValue.toString();
                         break;
@@ -378,14 +388,16 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
                         break;
                     case Bytes:
                         //apply bitmask to user entry and shift it because bytes is the other way round
-                        BigInteger userEntry;
-                        if(valueFromInput.matches("-?[0-9a-fA-F]+")) {
-                            userEntry = new BigInteger(valueFromInput, 16);
-                        } else {
-                            userEntry = new BigInteger(valueFromInput);
+                        inputBytes = TokenscriptFunction.convertArgToBytes(valueFromInput);
+                        if (inputBytes.length <= 32)
+                        {
+                            BigInteger val = new BigInteger(1, inputBytes).and(attr.bitmask).shiftRight(attr.bitshift);
+                            e.value = val.toString(16);
                         }
-                        BigInteger val = userEntry.and(attr.bitmask).shiftRight(attr.bitshift);
-                        e.value = val.toString(16);
+                        else
+                        {
+                            e.value = Numeric.toHexString(inputBytes);
+                        }
                         args.put(e.ref, e.value);
                         break;
                     case e18:
@@ -429,107 +441,12 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
                 resolved = false;
             }
         }
-
-        return resolved;
-    }
-
-    private void handleFunction(TSAction action)
-    {
-        if (isClosing) return;
-        if (action.function.tx != null && (action.function.method == null || action.function.method.length() == 0)
-                && (action.function.parameters == null || action.function.parameters.size() == 0))
-        {
-            //no params, this is a native style transaction
-            NativeSend(action);
-        }
         else
         {
-            //TODO: try to match the transaction with known token functions and check if this function will pass (insufficient funds or gas etc).
-            String functionData = viewModel.getTransactionBytes(token, tokenId, action.function);
-            //confirm the transaction
-            ContractAddress cAddr = new ContractAddress(action.function, token.tokenInfo.chainId, token.tokenInfo.address); //viewModel.getAssetDefinitionService().getContractAddress(action.function, token);
-
-            if (functionEffect == null)
-            {
-                functionEffect = actionMethod;
-            }
-            else
-            {
-                functionEffect = functionEffect + " " + token.getSymbol() + " to " + actionMethod;
-                //functionEffect = functionEffect + " to " + actionMethod;
-            }
-
-            //function call may include some value
-            String value = "0";
-            if (action.function.tx != null && action.function.tx.args.containsKey("value"))
-            {
-                //this is very specific but 'value' is a specifically handled param
-                value = action.function.tx.args.get("value").value;
-                BigDecimal valCorrected = getCorrectedBalance(value, 18);
-                Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
-                functionEffect = valCorrected.toString() + " " + currency.getSymbol() + " to " + actionMethod;
-            }
-
-            //finished resolving attributes, blank definition cache so definition is re-loaded when next needed
-            viewModel.getAssetDefinitionService().clearCache();
-
-            viewModel.confirmTransaction(this, cAddr.chainId, functionData, null, cAddr.address, actionMethod, functionEffect, value);
-        }
-    }
-
-    private void NativeSend(TSAction action)
-    {
-        boolean isValid = true;
-        KeyboardUtils.hideKeyboard(getCurrentFocus());
-        FunctionDefinition function = action.function;
-
-        //check we have a 'to' and a 'value'
-        if (!(function.tx.args.containsKey("value")))
-        {
-            isValid = false;
-            //TODO: Display error
+            resolved = resolvedUserArgs.containsKey(e.ref);
         }
 
-        //calculate native amount
-        BigDecimal value = new BigDecimal(function.tx.args.get("value").value);
-        //this is a native send, so check the native currency
-        Token currency = viewModel.getCurrency(token.tokenInfo.chainId);
-
-        if (currency.balance.subtract(value).compareTo(BigDecimal.ZERO) < 0)
-        {
-            //flash up dialog box insufficent funds
-            errorInsufficientFunds(currency);
-            isValid = false;
-        }
-
-        //is 'to' overridden?
-        String to = null;
-        if (function.tx.args.get("to") != null)
-        {
-            to = function.tx.args.get("to").value;
-        }
-        else if (function.contract.addresses.get(token.tokenInfo.chainId) != null)
-        {
-            to = function.contract.addresses.get(token.tokenInfo.chainId).get(0);
-        }
-
-        if (to == null || !Utils.isAddressValid(to))
-        {
-            errorInvalidAddress(to);
-            isValid = false;
-        }
-
-        BigDecimal valCorrected = getCorrectedBalance(value.toString(), 18);
-
-        //eg Send 2(*1) ETH(*2) to Alex's Amazing Coffee House(*3) (0xdeadacec0ffee(*4))
-        String extraInfo = String.format(getString(R.string.tokenscript_send_native), valCorrected, token.getSymbol(), actionMethod, to);
-
-        //Clear the cache to refresh any resolved values
-        viewModel.getAssetDefinitionService().clearCache();
-
-        if (isValid) {
-            viewModel.confirmNativeTransaction(this, to, value, token, extraInfo);
-        }
+        return resolved;
     }
 
     private void errorInvalidAddress(String address)
@@ -556,7 +473,7 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
         alertDialog.show();
     }
 
-    private void tokenscriptError(String elementName)
+    private void tokenScriptError(String elementName)
     {
         hideDialog();
         alertDialog = new AWalletAlertDialog(this);
@@ -576,10 +493,40 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
                 html -> {
                     StringBuilder sb = new StringBuilder();
                     for (char ch : html.toCharArray()) if (ch!='\"') sb.append(ch);
-                    if (!html.equals("null")) args.put(value, sb.toString());
-                    completeTokenscriptFunction(actionMethod);
+                    if (!html.equals("null"))
+                    {
+                        args.put(value, sb.toString());
+                        completeTokenScriptFunction(actionMethod);
+                    }
+                    else
+                    {
+                        getRaw(value);
+                    }
                 }
         );
+    }
+
+    private void getRaw(String value)
+    {
+        tokenView.evaluateJavascript(
+                "(function() { var x = document.getElementById(\"" + value + "\");\n" +
+                        "            return x.innerHTML; })();",
+                html -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (char ch : html.toCharArray()) if (ch!='\"') sb.append(ch);
+                    if (!html.equals("null"))
+                    {
+                        args.put(value, sb.toString());
+                        completeTokenScriptFunction(actionMethod);
+                    }
+                    else
+                    {
+                        //display error, basic script error reporting
+                        String attrDetails = actionMethod + " (" + value + ")";
+                        String details = getString(R.string.tokenscript_element_not_present, attrDetails);
+                        tokenScriptError(details);
+                    }
+                });
     }
 
     @Override
@@ -701,23 +648,6 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
         }
     }
 
-    public BigDecimal getCorrectedBalance(String value, int scale)
-    {
-        BigDecimal val = BigDecimal.ZERO;
-        try
-        {
-            val = new BigDecimal(value);
-            BigDecimal decimalDivisor = new BigDecimal(Math.pow(10, scale));
-            val = val.divide(decimalDivisor);
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-        }
-
-        return val.setScale(scale, RoundingMode.HALF_DOWN).stripTrailingZeros();
-    }
-
     private void onProgress(boolean shouldShowProgress) {
         hideDialog();
         if (shouldShowProgress) {
@@ -801,7 +731,9 @@ public class FunctionActivity extends BaseActivity implements FunctionCallback,
     @Override
     public void callToJSComplete(String function, String result)
     {
-        completeTokenscriptFunction(function);
+        userInputCheckCount = 0;
+        resolvedUserArgs.clear();
+        completeTokenScriptFunction(function);
     }
 
     @Override

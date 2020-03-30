@@ -15,14 +15,16 @@ import android.support.v4.content.ContextCompat;
 import android.util.SparseArray;
 
 import com.alphawallet.app.C;
+import com.alphawallet.app.entity.ActionEventCallback;
 import com.alphawallet.app.entity.ContractResult;
 import com.alphawallet.app.entity.ContractType;
+import com.alphawallet.app.entity.Event;
+import com.alphawallet.app.entity.TransactionMeta;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.opensea.Asset;
 import com.alphawallet.app.entity.tokens.ERC721Token;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokens.TokenFactory;
-import com.alphawallet.app.entity.tokenscript.FunctionUtils;
 import com.alphawallet.app.entity.tokenscript.TokenScriptFile;
 import com.alphawallet.app.entity.tokenscript.TokenscriptFunction;
 import com.alphawallet.app.repository.EthereumNetworkRepositoryType;
@@ -43,27 +45,21 @@ import com.alphawallet.token.entity.ParseResult;
 import com.alphawallet.token.entity.SigReturnType;
 import com.alphawallet.token.entity.TSAction;
 import com.alphawallet.token.entity.TokenScriptResult;
+import com.alphawallet.token.entity.TokenscriptContext;
 import com.alphawallet.token.entity.TransactionResult;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
+import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.TokenDefinition;
 
-import org.web3j.abi.EventEncoder;
-import org.web3j.abi.EventValues;
 import org.web3j.abi.FunctionEncoder;
-import org.web3j.abi.TypeEncoder;
-import org.web3j.abi.TypeReference;
-import org.web3j.abi.datatypes.Address;
-import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
-import org.web3j.abi.datatypes.Type;
-import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
-import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.EthFilter;
+import org.web3j.protocol.core.methods.response.EthBlock;
 import org.web3j.protocol.core.methods.response.EthLog;
+import org.web3j.protocol.core.methods.response.EthTransaction;
 import org.web3j.protocol.core.methods.response.Log;
-import org.web3j.tx.Contract;
 import org.xml.sax.SAXException;
 
 import java.io.BufferedOutputStream;
@@ -79,7 +75,6 @@ import java.net.HttpURLConnection;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -89,15 +84,15 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Completable;
-import io.reactivex.CompletableObserver;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Action;
 import io.reactivex.observers.DisposableCompletableObserver;
 import io.reactivex.schedulers.Schedulers;
 import io.realm.Realm;
+import io.realm.RealmResults;
+import io.realm.Sort;
 import io.realm.exceptions.RealmPrimaryKeyConstraintException;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -106,7 +101,7 @@ import static com.alphawallet.app.C.ADDED_TOKEN;
 import static com.alphawallet.app.repository.TokenRepository.getWeb3jService;
 import static com.alphawallet.token.tools.TokenDefinition.TOKENSCRIPT_CURRENT_SCHEMA;
 import static com.alphawallet.token.tools.TokenDefinition.TOKENSCRIPT_REPO_SERVER;
-import static org.web3j.tx.Contract.staticExtractEventParameters;
+
 
 /**
  * AssetDefinitionService is the only place where we interface with XML files.
@@ -134,10 +129,13 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private final AlphaWalletService alphaWalletService;
     private TokenDefinition cachedDefinition = null;
     private final SparseArray<Map<String, SparseArray<String>>> tokenTypeName;
-    private final List<Disposable> eventListeners = new ArrayList<>(); //List of schema events being listened to
     private final List<EventDefinition> eventList = new ArrayList<>(); //List of events built during file load
     private final Semaphore assetLoadingLock;  // used to block if someone calls getAssetDefinitionASync() while loading
-    private Disposable eventListener;
+    private Disposable eventListener;           // timer thread that periodically checks event logs for scripts that require events
+    private ActionEventCallback eventCallback;
+    private boolean requireEventSend = false;
+
+    private final Semaphore eventConnection;
 
     private final TokenscriptFunction tokenscriptUtility;
 
@@ -162,6 +160,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         assetDefinitions = new SparseArray<>();
         tokenLocalSource = trs;
         assetLoadingLock = new Semaphore(1);
+        eventConnection = new Semaphore(1);
         loadAssetScripts();
     }
 
@@ -690,6 +689,15 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private void finishLoading()
     {
         assetLoadingLock.release();
+        if (eventCallback != null)
+        {
+            generateAndSendEvents();
+        }
+        else
+        {
+            requireEventSend = true;
+        }
+        startEventListeners();
     }
 
     private void addContractsToNetwork(Integer network, Map<String, File> newTokenDescriptionAddresses)
@@ -764,7 +772,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
             ContractInfo holdingContracts = tokenDef.contracts.get(tokenDef.holdingToken);
             if (holdingContracts != null)
             {
-                addToEventList(tokenDef);
+                addToEventList(tokenDef, holdingContracts);
                 for (int network : holdingContracts.addresses.keySet())
                 {
                     addContractsToNetwork(network, networkAddresses(holdingContracts.addresses.get(network), file.getAbsolutePath()));
@@ -772,37 +780,44 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                 return true;
             }
         } catch (Exception e) {
+            System.out.println("ERROR While parsing: " + file.getAbsolutePath());
             e.printStackTrace();
         }
         return false;
     }
 
-    private void addToEventList(TokenDefinition tokenDef)
+    private void addToEventList(TokenDefinition tokenDef, ContractInfo cInfo)
     {
         for (String attrName : tokenDef.attributeTypes.keySet())
         {
             AttributeType attr = tokenDef.attributeTypes.get(attrName);
             if (attr.event != null)
             {
+                attr.event.originContract = cInfo;
                 eventList.add(attr.event); //note: event definition contains link back to the contract it refers to
             }
         }
     }
 
-    public void stopEventListeners()
+    private void stopEventListener()
     {
         if (eventListener != null) eventListener.dispose();
+        //blank all events
+        for (EventDefinition ev : eventList)
+        {
+            ev.readBlock = BigInteger.ZERO;
+        }
     }
 
     public void startEventListeners()
     {
-        stopEventListeners();
+        stopEventListener();
         eventListener =  Observable.interval(0, CHECK_TX_LOGS_INTERVAL, TimeUnit.SECONDS)
                 .doOnNext(l -> {
                     checkEvents()
                             .subscribeOn(Schedulers.io())
                             .observeOn(AndroidSchedulers.mainThread())
-                            .subscribe(() -> {}, t -> {})
+                            .subscribe(() -> {}, t -> {}) //results are handled within logging function
                             .isDisposed();
                 }).subscribe();
     }
@@ -813,14 +828,14 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         return Completable.fromAction(() -> {
             for (EventDefinition ev : eventList)
             {
-                ContractInfo originContracts = ev.eventModule.contractInfo;
+                ContractInfo originContracts = ev.originContract;
                 for (int chainId : originContracts.addresses.keySet())
                 {
                     for (String addr : originContracts.addresses.get(chainId))
                     {
                         //have corresponding token?
                         Token originToken = tokensService.getToken(chainId, addr);
-                        if (originToken.hasPositiveBalance())
+                        if (originToken != null && originToken.hasPositiveBalance())
                         {
                             //initiate listener
                             getEvents(ev, originToken);
@@ -834,101 +849,20 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
     private void getEvents(EventDefinition ev, Token originToken)
     {
         Web3j web3j = getWeb3jService(originToken.tokenInfo.chainId);
-        List<TypeReference<?>> eventArgSpec = FunctionUtils.generateFunctionDefinition(ev.eventModule.getSequenceArgs());
-
-        final Event resolverEvent = new Event(ev.eventName, eventArgSpec);
-
-        //work out which topics to filter on
-        String filterTopic = ev.getFilterTopicIndex();
-        String filterTopicValue = ev.getFilterTopicValue();
-
-        //find the topic index - at this stage we only handle single topics
-        int topicIndex = ev.getTopicIndex(filterTopic);
-
-        //work out which label we want
-        int selectIndexInNonIndexed = ev.getSelectIndex(false);
-        int selectIndexInIndexed = ev.getSelectIndex(true);
-
-        //isolate which indexed param it is
-        List<String> indexedParams = ev.eventModule.getArgNames(true);
-
-        final org.web3j.protocol.core.methods.request.EthFilter filter =
-                new org.web3j.protocol.core.methods.request.EthFilter(
-                        DefaultBlockParameterName.EARLIEST,
-                        DefaultBlockParameterName.LATEST,
-                        originToken.getAddress())                            // contract address
-                        .addSingleTopic(EventEncoder.encode(resolverEvent)); // event name
-
-        for (int i = 0; i < indexedParams.size(); i++)
-        {
-            if (i == topicIndex)
-            {
-                addTopicFilter(filter, filterTopicValue, originToken); //add the required log filter - allowing for multiple tokenIds
-                break;
-            }
-            else
-            {
-                filter.addSingleTopic(null);
-            }
-        }
+        final EthFilter filter = tokenscriptUtility.generateLogFilter(ev, originToken);
 
         try
         {
-            String selectVal = "";
+            eventConnection.acquire();
             EthLog ethLogs = web3j.ethGetLogs(filter).send();
-            final List<EthLog.LogResult> topics = ethLogs.getLogs();
-            for (EthLog.LogResult r : topics)
-            {
-                Log log = (Log)r.get();
-                final EventValues eventValues = staticExtractEventParameters(resolverEvent, log);
-                if (selectIndexInNonIndexed >= 0)
-                {
-                    selectVal = eventValues.getIndexedValues().get(selectIndexInNonIndexed).getTypeAsString();
-//                    switch (eventValues.getIndexedValues().get(0).getTypeAsString())
-//                    {
-//                        case "address":
-//                        default:
-//                            throw new IllegalStateException("Unexpected value: " + eventValues.getIndexedValues().get(0).getValue().getClass());
-//                    }
-                }
-                else if (selectIndexInIndexed >= 0)
-                {
-                    selectVal =  eventValues.getIndexedValues().get(selectIndexInIndexed).getTypeAsString();
-                }
-
-//                BigInteger tokenId = (BigInteger) eventValues.getIndexedValues().get(0).getValue();
-//
-//                org.web3j.abi.datatypes.Address addr = (org.web3j.abi.datatypes.Address) eventValues.getIndexedValues().get(1).getValue();
-//                org.web3j.abi.datatypes.Uint count = (org.web3j.abi.datatypes.Uint) eventValues.getNonIndexedValues().get(0).getValue();
-                System.out.println("YOLESS: " + selectVal);
-            }
-
-//            for (EthLog.LogResult r : ethLogs.getLogs())
-//            {
-//                System.out.println(r.toString());
-//            }
+            processLogs(ev, ethLogs.getLogs(), originToken);
         }
         catch (Exception e)
         {
             e.printStackTrace();
         }
 
-        /*
-        try
-            {
-                org.web3j.protocol.core.methods.response.EthLog ethLogs = web3j.ethGetLogs(ethFilter).send();
-                for (EthLog.LogResult r : ethLogs.getLogs())
-                {
-                    goval += r.toString();
-                }
-            }
-            catch (Exception e)
-            {
-                e.printStackTrace();
-            }
-
-            return goval;
-         */
+        eventConnection.release();
 
         //More elegant, but requires a private node
         //TODO: code an event system
@@ -941,57 +875,93 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
 //        }, this::onLogError);
     }
 
+    private void processLogs(EventDefinition ev, List<EthLog.LogResult> logs, Token originToken)
+    {
+        if (logs.size() == 0) return; //early return
+
+        Web3j web3j = getWeb3jService(originToken.tokenInfo.chainId);
+        TokenDefinition td = getAssetDefinition(originToken.tokenInfo.chainId, originToken.getAddress());
+        AttributeType attrType = td.attributeTypes.get(ev.attributeId);
+
+        for (EthLog.LogResult ethLog : logs)
+        {
+            String selectVal = tokenscriptUtility.getSelectVal(ev, ethLog);
+            EthBlock txBlock = tokenscriptUtility.getTransactionDetails(((Log)ethLog.get()).getBlockHash(), web3j).blockingGet();
+
+            long blockTime = txBlock.getBlock().getTimestamp().longValue();
+            eventCallback.receivedEvent(ev.attributeId, attrType.getSyntaxVal(selectVal), blockTime, originToken.tokenInfo.chainId);
+            storeEventValue(ev, ethLog, attrType, originToken, blockTime, selectVal);
+        }
+    }
+
+    private void storeEventValue(EventDefinition ev, EthLog.LogResult log, AttributeType attr,
+                                 Token originToken, long blockTime, String selectVal)
+    {
+        //store result
+        String filterTopicValue = ev.getFilterTopicValue();
+        TransactionResult txResult;
+        BigInteger tokenId;
+
+        if (filterTopicValue.equals("tokenId"))
+        {
+            String tokenIdStr = tokenscriptUtility.getTopicVal(ev, log);
+            if (tokenIdStr.startsWith("0x"))
+            {
+                tokenId = Numeric.toBigInt(tokenIdStr);
+            }
+            else
+            {
+                tokenId = new BigInteger(tokenIdStr);
+            }
+        }
+        else
+        {
+            tokenId = originToken.getArrayBalance().get(0);
+        }
+
+        ContractAddress eventContractAddress = new ContractAddress(attr.event.eventModule.contractInfo.addresses.keySet().iterator().next(),
+                                                                   attr.event.eventModule.contractInfo.addresses.values().iterator().next().get(0));
+        txResult = getFunctionResult(eventContractAddress, attr, tokenId);
+
+        txResult.result = selectVal;
+
+        if (txResult.resultTime == 0 || blockTime > txResult.resultTime)
+        {
+            //store
+            txResult.resultTime = blockTime;
+            storeAuxData(txResult); // updates the entry for the attribute
+            ev.hasNewEvent = true;
+        }
+
+        txResult.resultTime = blockTime;
+        txResult.result = attr.getSyntaxVal(selectVal) + "," + ev.readBlock.toString(16); //store block time as well as block number
+        storeAuxData(txResult); //store the event itself
+    }
+
+    public boolean checkTokenForNewEvent(Token token)
+    {
+        boolean hasEvent = false;
+        for (EventDefinition ev : eventList)
+        {
+            ContractInfo originContracts = ev.eventModule.contractInfo;
+            if (originContracts.addresses.containsKey(token.tokenInfo.chainId))
+            {
+                if (originContracts.addresses.get(token.tokenInfo.chainId).contains(token.getAddress().toLowerCase()))
+                {
+                    hasEvent = ev.hasNewEvent;
+                    ev.hasNewEvent = false;
+                    break;
+                }
+            }
+        }
+
+        return hasEvent;
+    }
 
     private void onLogError(Throwable throwable)
     {
         System.out.println("Log error: " + throwable.getMessage());
         throwable.printStackTrace();
-    }
-
-    private void addTopicFilter(EthFilter filter, String filterTopicValue, Token originToken)
-    {
-        //find the topic value
-        switch (filterTopicValue)
-        {
-            case "tokenId":
-                if (originToken.isNonFungible())
-                {
-                    //get unique tokenId balance
-                    List<BigInteger> uniqueTokenIds = originToken.getUniqueTokenIds();
-                    if (uniqueTokenIds.size() == 1)
-                    {
-                        //new org.web3j.abi.datatypes.generated.Uint256(expiry)
-                        filter.addSingleTopic("0x" + TypeEncoder.encode(new Uint256(uniqueTokenIds.get(0))));
-                    }
-                    else
-                    {
-                        //listen for multiple tokenIds
-                        //String[] optionals = new String[uniqueTokenIds.size()];
-                        List<String> optionals = new ArrayList<>();
-                        for (BigInteger uid : uniqueTokenIds)
-                        {
-                            String entry = "0x" + TypeEncoder.encode(new Uint256(uid));
-                            optionals.add(entry);
-                        }
-                        filter.addOptionalTopics(optionals.toArray(new String[0]));
-                    }
-                }
-                else
-                {
-                    //TODO: report error in tokenscript management page
-                    System.out.println("ERROR: using 'tokenId' with Fungible token");
-                }
-                break;
-            case "value":
-                //TODO: Fulfilled from user entry - work out a way of doing this
-                filter.addSingleTopic(null);
-                break;
-            case "ownerAddress":
-                filter.addSingleTopic("0x" + TypeEncoder.encode(new Address(tokensService.getCurrentAddress())));
-                break;
-            default:
-                break;
-        }
     }
 
     private boolean allowableExtension(File file)
@@ -1321,7 +1291,6 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                 if (token != null)
                 {
                     TokenScriptFile tokenDef = defMap.get(address);
-                    if (tokenDef != null && tokenDef.isDebug()) token.hasDebugTokenscript = true;
                     token.hasTokenScript = true;
                     TokenDefinition td = getAssetDefinition(networkId, address);
                     if (td != null && td.contracts != null)
@@ -1392,7 +1361,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                                 Observable.fromIterable(token.getNonZeroArrayBalance())
                                         .map(tokenId -> getFunctionResult(cAddr, attr, tokenId))
                                         .filter(txResult -> txResult.needsUpdating(token.lastTxTime))
-                                        .concatMap(result -> tokenscriptUtility.fetchAttrResult(token.getWallet(), attr.id, result.tokenId, cAddr, td, this, token.lastTxTime))
+                                        .concatMap(result -> tokenscriptUtility.fetchAttrResult(token.getWallet(), td.attributeTypes.get(attr.id), result.tokenId, cAddr, td, this, token.lastTxTime))
                                         .subscribeOn(Schedulers.io())
                                         .observeOn(AndroidSchedulers.mainThread())
                                         .subscribe();
@@ -1403,7 +1372,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                             TransactionResult tr = getFunctionResult(cAddr, attr, BigInteger.ZERO);
                             if (tr.needsUpdating(token.lastTxTime))
                             {
-                                tokenscriptUtility.fetchAttrResult(token.getWallet(), attr.id, tr.tokenId, cAddr, td, this, token.lastTxTime)
+                                tokenscriptUtility.fetchAttrResult(token.getWallet(), td.attributeTypes.get(attr.id), tr.tokenId, cAddr, td, this, token.lastTxTime)
                                         .subscribeOn(Schedulers.io())
                                         .observeOn(AndroidSchedulers.mainThread())
                                         .subscribe();
@@ -1477,14 +1446,20 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         return cAddr.address + "-" + tokenId.toString(Character.MAX_RADIX) + "-" + cAddr.chainId + "-" + attrId;
     }
 
+    private String eventKey(TransactionResult tResult)
+    {
+        return tResult.contractAddress + "-" + tResult.tokenId.toString(Character.MAX_RADIX) + "-" + tResult.contractChainId + "-" + tResult.attrId + tResult.resultTime + "-log";
+    }
+
     @Override
     public TransactionResult getFunctionResult(ContractAddress contract, AttributeType attr, BigInteger tokenId)
     {
         TransactionResult tr = new TransactionResult(contract.chainId, contract.address, tokenId, attr);
+        String dataBaseKey = functionKey(contract, tokenId, attr.id);
         try (Realm realm = realmManager.getAuxRealmInstance(tokensService.getCurrentAddress()))
         {
             RealmAuxData realmToken = realm.where(RealmAuxData.class)
-                    .equalTo("instanceKey", functionKey(contract, tokenId, attr.id))
+                    .equalTo("instanceKey", dataBaseKey)
                     .equalTo("chainId", contract.chainId)
                     .findFirst();
 
@@ -1514,10 +1489,16 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                     public void onStart()
                     {
                         if (tokensService.getCurrentAddress() == null || !WalletUtils.isValidAddress(tokensService.getCurrentAddress())) return;
+                        if (tResult.result == null) return;
                         realm = realmManager.getAuxRealmInstance(tokensService.getCurrentAddress());
                         ContractAddress cAddr = new ContractAddress(tResult.contractChainId, tResult.contractAddress);
+                        String databaseKey = functionKey(cAddr, tResult.tokenId, tResult.attrId);
+                        if (tResult.result.contains(","))
+                        {
+                            databaseKey = eventKey(tResult);
+                        }
                         RealmAuxData realmToken = realm.where(RealmAuxData.class)
-                                .equalTo("instanceKey", functionKey(cAddr, tResult.tokenId, tResult.attrId))
+                                .equalTo("instanceKey", databaseKey)
                                 .equalTo("chainId", tResult.contractChainId)
                                 .findFirst();
 
@@ -1525,7 +1506,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
                         {
                             TransactionsRealmCache.addRealm();
                             realm.beginTransaction();
-                            createAuxData(realm, tResult);
+                            createAuxData(realm, tResult, databaseKey);
                         }
                         else if (tResult.result != null)
                         {
@@ -1564,12 +1545,62 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         return tResult;
     }
 
-    private void createAuxData(Realm realm, TransactionResult tResult)
+    private void generateAndSendEvents()
+    {
+        List<Event> storedEvents = new ArrayList<>();
+        try (Realm realm = realmManager.getAuxRealmInstance(tokensService.getCurrentAddress()))
+        {
+            RealmResults<RealmAuxData> realmEvents = realm.where(RealmAuxData.class)
+                    .endsWith("instanceKey", "-log")
+                    .sort("resultTime", Sort.ASCENDING)
+                    .findAll();
+
+            for (RealmAuxData eventData : realmEvents)
+            {
+                String[] results = eventData.getResult().split(",");
+                if (results.length != 2) continue;
+                String result = results[0];
+                BigInteger blockNumber = new BigInteger(results[1], 16);
+                String eventText = "Event: " + eventData.getFunctionId() + " becomes " + result;
+                Event ev = new Event(eventText, eventData.getResultTime(), eventData.getChainId());
+                storedEvents.add(ev);
+
+                //load event with top block value
+                updateEventList(eventData, blockNumber);
+            }
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+
+        if (eventCallback != null) eventCallback.eventsLoaded(storedEvents.toArray(new Event[0]));
+    }
+
+    private void updateEventList(RealmAuxData eventData, BigInteger blockNumber)
+    {
+        for (EventDefinition ev : eventList)
+        {
+            if (ev.attributeId.equals(eventData.getFunctionId()))
+            {
+                //does the event module correspond to this contract?
+                String[] contractDetails = eventData.getInstanceKey().split("-");
+                //return tResult.contractAddress + "-" + tResult.tokenId.toString(Character.MAX_RADIX) + "-" + tResult.contractChainId + "-" + tResult.attrId + tResult.resultTime + "-log";
+                String contractAddr = contractDetails[0].toLowerCase();
+                if (ev.eventModule.contractInfo.hasContract(eventData.getChainId(), contractAddr))
+                {
+                    ev.readBlock = blockNumber;
+                }
+            }
+        }
+    }
+
+    private void createAuxData(Realm realm, TransactionResult tResult, String dataBaseKey)
     {
         try
         {
             ContractAddress cAddr = new ContractAddress(tResult.contractChainId, tResult.contractAddress);
-            RealmAuxData realmData = realm.createObject(RealmAuxData.class, functionKey(cAddr, tResult.tokenId, tResult.attrId));
+            RealmAuxData realmData = realm.createObject(RealmAuxData.class, dataBaseKey);
             realmData.setResultTime(tResult.resultTime);
             realmData.setResult(tResult.result);
             realmData.setChainId(tResult.contractChainId);
@@ -1582,6 +1613,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
             e.printStackTrace();
         }
     }
+
 
     //private Token
 
@@ -1653,16 +1685,24 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         return sb.toString();
     }
 
-    public Observable<TokenScriptResult.Attribute> resolveAttrs(Token token, BigInteger tokenId)
+    public Observable<TokenScriptResult.Attribute> resolveAttrs(Token token, BigInteger tokenId, List<AttributeType> extraAttrs)
     {
         TokenDefinition definition = getAssetDefinition(token.tokenInfo.chainId, token.tokenInfo.address);
         ContractAddress cAddr = new ContractAddress(token.tokenInfo.chainId, token.tokenInfo.address);
-        //return definition.resolveAttributes(tokenId, this, cAddr);
-        //resolveAttributes(BigInteger tokenId, AttributeInterface attrIf, ContractAddress cAddr, TokenDefinition td)
-        return tokenscriptUtility.resolveAttributes(token.getWallet(), tokenId, this, cAddr, definition, token.lastTxTime);
+
+        definition.context = new TokenscriptContext();
+        definition.context.cAddr = cAddr;
+        definition.context.attrInterface = this;
+
+        List<AttributeType> attrList = new ArrayList<>(definition.attributeTypes.values());
+        if (extraAttrs != null) attrList.addAll(extraAttrs);
+
+        return Observable.fromIterable(attrList)
+                .flatMap(attr -> tokenscriptUtility.fetchAttrResult(token.getWallet(), attr, tokenId,
+                                                                    cAddr, definition, this, token.lastTxTime));
     }
 
-    public Observable<TokenScriptResult.Attribute> resolveAttrs(Token token, List<BigInteger> tokenIds)
+    public Observable<TokenScriptResult.Attribute> resolveAttrs(Token token, List<BigInteger> tokenIds, List<AttributeType> extraAttrs)
     {
         TokenDefinition definition = getAssetDefinition(token.tokenInfo.chainId, token.tokenInfo.address);
         //pre-fill tokenIds
@@ -1673,7 +1713,7 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
 
         //TODO: store transaction fetch time for multiple tokenIds
 
-        return resolveAttrs(token, tokenIds.get(0));
+        return resolveAttrs(token, tokenIds.get(0), extraAttrs);
     }
 
     private void resolveTokenIds(AttributeType attrType, List<BigInteger> tokenIds)
@@ -1773,5 +1813,15 @@ public class AssetDefinitionService implements ParseResult, AttributeInterface
         }
 
         return cr;
+    }
+
+    public void setEventCallback(ActionEventCallback callback)
+    {
+        eventCallback = callback;
+        if (requireEventSend)
+        {
+            requireEventSend = false;
+            generateAndSendEvents();
+        }
     }
 }

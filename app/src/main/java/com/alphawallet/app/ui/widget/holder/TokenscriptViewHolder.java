@@ -99,8 +99,8 @@ public class TokenscriptViewHolder extends BinderViewHolder<TicketRange> impleme
         String viewType = iconified ? "item-view" : "view";
         String view = assetDefinitionService.getTokenView(token.tokenInfo.chainId, token.getAddress(), viewType);
         String style = assetDefinitionService.getTokenView(token.tokenInfo.chainId, token.getAddress(), "style");
-        String viewData = tokenView.injectWeb3TokenInit(getContext(), view, tokenAttrs);
-        viewData = tokenView.injectStyleData(viewData, style); //style injected last so it comes first
+        String viewData = tokenView.injectWeb3TokenInit(getContext(), view, tokenAttrs, data.tokenIds.get(0).toString(10));
+        viewData = tokenView.injectStyleAndWrapper(viewData, style, data.tokenIds.get(0).toString(10)); //style injected last so it comes first
 
         String base64 = Base64.encodeToString(viewData.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
         tokenView.loadData(base64, "text/html; charset=utf-8", "base64");
@@ -121,7 +121,7 @@ public class TokenscriptViewHolder extends BinderViewHolder<TicketRange> impleme
     {
         tokenId = data.tokenIds.get(0);
         attrs = assetDefinitionService.getTokenAttrs(token, tokenId, data.tokenIds.size());
-        assetDefinitionService.resolveAttrs(token, tokenId)
+        assetDefinitionService.resolveAttrs(token, tokenId, null) //TODO: Supply local attributes
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(this::onAttr, this::onError, () -> displayTicket(attrs.toString(), data))

@@ -27,6 +27,10 @@ public class TokenscriptElement
                     String indexStr = split[1];
                     index = Integer.parseInt(indexStr);
                 }
+                else if (split.length == 1)
+                {
+                    index = 0;
+                }
             }
             catch (NumberFormatException e)
             {
