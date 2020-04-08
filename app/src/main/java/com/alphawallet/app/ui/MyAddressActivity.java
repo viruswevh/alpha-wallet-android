@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
+import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -50,6 +51,8 @@ import java.util.List;
 import javax.inject.Inject;
 
 import dagger.android.AndroidInjection;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 
 import static com.alphawallet.app.C.Key.WALLET;
 
@@ -271,6 +274,20 @@ public class MyAddressActivity extends BaseActivity implements View.OnClickListe
         functionBar.setVisibility(View.VISIBLE);
         List<Integer> functions = new ArrayList<>(Collections.singletonList(R.string.copy_wallet_address));
         functionBar.setupFunctions(this, functions);
+
+        viewModel.resolveEns(displayAddress)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribeOn(Schedulers.io())
+            .subscribe(this::updateAddressWithENS, Throwable::printStackTrace).isDisposed();
+    }
+
+    private void updateAddressWithENS(String ensName)
+    {
+        if (!TextUtils.isEmpty(ensName))
+        {
+            String addrText = displayAddress + "\n\n" + ensName;
+            address.setText(addrText);
+        }
     }
 
     private void showContract()
