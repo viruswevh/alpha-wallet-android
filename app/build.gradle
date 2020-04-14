@@ -69,7 +69,7 @@ android {
 	awallet {
 		dimension "targetting"
         versionCode 94
-        versionName "2.20.0"
+        versionName "2.23.0"
 	}
     }
     buildTypes {
