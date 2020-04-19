@@ -41,6 +41,7 @@ public class AdvancedSettingsActivity extends BaseActivity {
     private SettingsItemView clearBrowserCache;
     private SettingsItemView tokenScript;
     private SettingsItemView changeLanguage;
+    private SettingsItemView tokenScriptManagement;
     private SettingsItemView changeCurrency;
 
     @Override
@@ -91,6 +92,13 @@ public class AdvancedSettingsActivity extends BaseActivity {
                 .withListener(this::onChangeCurrencyClicked)
                 .build();
 
+        //TODO Change Icon
+        tokenScriptManagement = new SettingsItemView.Builder(this)
+                .withIcon(R.drawable.ic_settings_language)
+                .withTitle(R.string.tokenscript_management)
+                .withListener(this::onTokenScriptManagementClicked)
+                .build();
+
         changeLanguage.setSubtitle(LocaleUtils.getDisplayLanguage(viewModel.getDefaultLocale(), viewModel.getDefaultLocale()));
     }
 
@@ -104,6 +112,7 @@ public class AdvancedSettingsActivity extends BaseActivity {
 
         advancedSettingsLayout.addView(changeLanguage);
         advancedSettingsLayout.addView(changeCurrency);
+        advancedSettingsLayout.addView(tokenScriptManagement);
     }
 
     private void onConsoleClicked() {
@@ -134,6 +143,11 @@ public class AdvancedSettingsActivity extends BaseActivity {
         intent.putExtra(EXTRA_CURRENCY, currentLocale);
         intent.putParcelableArrayListExtra(EXTRA_STATE, viewModel.getCurrencyList());
         startActivityForResult(intent, C.UPDATE_CURRENCY);
+    }
+
+    private void onTokenScriptManagementClicked() {
+        Intent intent = new Intent(this, TokenScriptManagementActivity.class);
+        startActivity(intent);
     }
 
     private void showXMLOverrideDialog() {
