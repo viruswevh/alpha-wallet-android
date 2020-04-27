@@ -34,6 +34,14 @@ public class XMLDsigVerifierTest {
     }
 
     @Test
+    public void verifyRSAxmldsigLatestSchema() throws Exception {
+        InputStream DAIToken = new FileInputStream("src/test/ts/DAI-latest-schema.tsml");
+        XMLDsigVerificationResult result = new XMLDSigVerifier().VerifyXMLDSig(DAIToken);
+        assert(result.isValid);
+        assert(result.subjectPrincipal.equals("CN=aw.app"));
+    }
+
+    @Test
     public void testFifaTSMLECDSA() throws Exception {
         InputStream EntryToken = new FileInputStream("src/test/ts/fifa.tsml");
         XMLDsigVerificationResult result = new XMLDSigVerifier().VerifyXMLDSig(EntryToken);
